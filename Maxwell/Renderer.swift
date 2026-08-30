@@ -17,6 +17,9 @@ import SwiftUI
 @Observable
 final class SimulationSettings {
     var paused = true
+    
+    var Nx = 200
+    var Ny = 200
 }
 
 struct MetalView: NSViewRepresentable {
@@ -92,6 +95,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     private let texturePass: TextureRenderPass
     private let ezRenderPass: EzRenderPass
     
+    private var uniforms: Uniforms
+    
     init(settings: SimulationSettings) {
         self.settings = settings
         
@@ -113,6 +118,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         
         self.texturePass = TextureRenderPass(device: device, library: library)
         self.ezRenderPass = EzRenderPass(device: device, library: library, texturePass: { nil })
+        self.uniforms = Uniforms()
     }
     
     func updateRenderTexture(view: MTKView) {

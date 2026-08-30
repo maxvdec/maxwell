@@ -1,10 +1,83 @@
-import SwiftUI
 import Playgrounds
+import SwiftUI
 
-@main struct MyApp: App {
+struct WindowSizeReader: NSViewRepresentable {
+    let onChange: (CGSize) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+
+        DispatchQueue.main.async {
+            guard let window = view.window else { return }
+
+            NotificationCenter.default.addObserver(
+                forName: NSWindow.didResizeNotification,
+                object: window,
+                queue: .main
+            ) { _ in
+                onChange(window.frame.size)
+            }
+        }
+
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+@main
+struct MyApp: App {
+    @AppStorage("windowWidth") private var windowWidth = 1200.0
+    @AppStorage("windowHeight") private var windowHeight = 800.0
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .background {
+                    WindowSizeReader { size in
+                        windowWidth = size.width
+                        windowHeight = size.height
+                    }
+                }
+        }
+        .defaultSize(
+            width: windowWidth,
+            height: windowHeight
+        )
+    }
+}
+
+struct ParametersView: View {
+    @Binding var settings: SimulationSettings
+    @Binding var renderer: Renderer
+    
+    var body: some View {
+        HStack {
+            Spacer()
+            RoundedRectangle(cornerRadius: 16)
+                .frame(maxWidth: 300, maxHeight: .infinity)
+                .foregroundStyle(.white)
+                .overlay {
+                    HStack {
+                        parameterList
+                            .padding()
+                        Spacer()
+                    }
+                }
+                .padding()
+        }.padding()
+    }
+    
+    var parameterList: some View {
+        ScrollView {
+            VStack {
+                Text("Parameters")
+                    .font(.largeTitle)
+                    .bold()
+                
+                IntField("Nx", value: $settings.Nx, unit: "")
+                IntField("Ny", value: $settings.Ny, unit: "")
+            }
         }
     }
 }
@@ -23,6 +96,8 @@ struct ContentView: View {
     var body: some View {
         VStack {
             MetalView(renderer: renderer)
+        }.overlay {
+            ParametersView(settings: $settings, renderer: $renderer)
         }
     }
 }
