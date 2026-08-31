@@ -20,6 +20,7 @@ final class SimulationSettings {
     
     var Nx = 500
     var Ny = 500
+    var pmlThickness: Int = 20
     
     var width: Float = 2.0
     var height: Float = 2.0
@@ -261,6 +262,8 @@ final class Renderer: NSObject, MTKViewDelegate {
         
         uniforms.visualizationScale = settings.visualizationScale
         uniforms.reflectingWalls = settings.reflectWalls ? 1 : 0
+        
+        uniforms.pmlThickness = settings.reflectWalls ? 0 : UInt32(settings.pmlThickness)
     }
     
     func resetSimulation() {

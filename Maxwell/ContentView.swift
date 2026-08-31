@@ -77,6 +77,7 @@ struct ParametersView: View {
                 
                 IntField("Nx", value: $settings.Nx, unit: "")
                 IntField("Ny", value: $settings.Ny, unit: "")
+                IntField("PML Thickness", value: $settings.pmlThickness, unit: "")
                 
                 FloatField("Width", value: $settings.width, unit: "m")
                 FloatField("Height", value: $settings.height, unit: "m")
@@ -121,16 +122,23 @@ struct ParametersView: View {
                 }
             }
         }
-        .onKeyPress(.rightArrow) {
-            renderer.stepOneFrame()
-            return .handled
+        .onKeyPress { key in
+            if !key.modifiers.contains(.command) {
+                return .ignored
+            }
+            
+            if key.key == .rightArrow {
+                renderer.stepOneFrame()
+                return .handled
+            } else if key.key == .leftArrow {
+                renderer.resetSimulation()
+                return .handled
+            }
+            
+            return .ignored
         }
         .onKeyPress(.space) {
             settings.paused.toggle()
-            return .handled
-        }
-        .onKeyPress(.leftArrow) {
-            renderer.resetSimulation()
             return .handled
         }
     }

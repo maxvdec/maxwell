@@ -37,4 +37,28 @@ inline float boundaryDamping(
     return exp(-strength * t * t);
 }
 
+inline float pmlDepth(
+    uint p,
+    uint size,
+    uint thickness
+) {
+    if (p < thickness) {
+        return float(thickness - p) / float(thickness);
+    }
+
+    if (p >= size - thickness) {
+        return float(p - (size - thickness - 1))
+             / float(thickness);
+    }
+
+    return 0.0;
+}
+
+inline float calculateSigmaMax(float pmlPhysical) {
+    float R = 1e-6;
+    float m = 3;
+    float eta0 = 377; // ohms
+    return - ((m + 1) * log(R) / 2 * eta0 * pmlPhysical);
+}
+
 #endif /* MetalUtils_h */

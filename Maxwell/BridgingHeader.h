@@ -29,6 +29,8 @@ struct Uniforms {
     float sourceFrequency;
     
     unsigned int reflectingWalls;
+    
+    unsigned int pmlThickness;
 };
 
 

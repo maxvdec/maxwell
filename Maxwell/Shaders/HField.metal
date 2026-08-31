@@ -29,12 +29,36 @@ kernel void updateH(device GridCell* cells [[buffer(0)]], constant Uniforms& uni
     GridCell up = cells[indexUp];
     GridCell right = cells[indexRight];
     
-    const float mu0 = 1.254e-6;
-    float coeffY = uniforms.dt / (mu0 * uniforms.dy);
-    float coeffX = uniforms.dt / (mu0 * uniforms.dx);
+    const float mu0 = 1.25663706212e-6f;
+    const float epsilon0 = 8.854187817e-12f;
     
-    cell.H.x -= coeffY * (up.Ez - cell.Ez);
-    cell.H.y += coeffX * (right.Ez - cell.Ez);
+    float depthX = pmlDepth(id.x, uniforms.Nx, uniforms.pmlThickness);
+    float depthY = pmlDepth(id.y, uniforms.Ny, uniforms.pmlThickness);
+    
+    float pmlPhysicalWidthX = float(uniforms.pmlThickness) * uniforms.dx;
+    float sigmaMaxX = calculateSigmaMax(pmlPhysicalWidthX);
+    float pmlPhysicalWidthY = float(uniforms.pmlThickness) * uniforms.dy;
+    float sigmaMaxY = calculateSigmaMax(pmlPhysicalWidthY);
+    
+    float ezDiffY = (up.Ez - cell.Ez) / uniforms.dy;
+    float sigmaEY = sigmaMaxY * pow(depthY, 3);
+    float sigmaMY = sigmaEY * mu0 / epsilon0;
+    
+    float lossHx = sigmaMY * uniforms.dt / (2.0f * mu0);
+    float caHx = (1.0f - lossHx) / (1.0f + lossHx);
+    float cbHx = (uniforms.dt / mu0) / (1.0 + lossHx);
+    
+    cell.H.x = caHx * cell.H.x - cbHx * ezDiffY;
+    
+    float ezDiffX = (right.Ez - cell.Ez) / uniforms.dx;
+    float sigmaEX = sigmaMaxX * pow(depthX, 3);
+    float sigmaMX = sigmaEX * mu0 / epsilon0;
+    
+    float lossHy = sigmaMX * uniforms.dt / (2.0f * mu0);
+    float caHy = (1.0f - lossHy) / (1.0f + lossHy);
+    float cbHy = (uniforms.dt / mu0) / (1.0 + lossHy);
+    
+    cell.H.y = caHy * cell.H.y + cbHy * ezDiffX;
     
     cells[index] = cell;
 }
