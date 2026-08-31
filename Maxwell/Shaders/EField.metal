@@ -7,13 +7,18 @@
 
 #include <metal_stdlib>
 #include "../BridgingHeader.h"
+#include "./MetalUtils.h"
 using namespace metal;
 
-inline uint gridIndex(uint x, uint y, uint Nx) {
-    return y * Nx + x;
-}
-
 kernel void updateEz(device GridCell* cells [[buffer(0)]], constant Uniforms& uniforms [[buffer(1)]], uint2 id [[thread_position_in_grid]]) {
+    if (id.x >= uniforms.Nx || id.y >= uniforms.Ny) {
+        return;
+    }
+    
+    if (id.x == 0 || id.y == 0) {
+        return;
+    }
+    
     uint index = gridIndex(id.x, id.y, uniforms.Nx);
     
     GridCell current = cells[index];
@@ -30,6 +35,6 @@ kernel void updateEz(device GridCell* cells [[buffer(0)]], constant Uniforms& un
     float leftDiff = (current.H.y - left.H.y) / uniforms.dx;
     float downDiff = (current.H.x - down.H.x) / uniforms.dy;
     
-    current.Ez = coefficient * (leftDiff - downDiff);
+    current.Ez += coefficient * (leftDiff - downDiff);
     cells[index] = current;
 }

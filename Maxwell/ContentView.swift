@@ -77,6 +77,21 @@ struct ParametersView: View {
                 
                 IntField("Nx", value: $settings.Nx, unit: "")
                 IntField("Ny", value: $settings.Ny, unit: "")
+                
+                FloatField("Width", value: $settings.width, unit: "m")
+                FloatField("Height", value: $settings.height, unit: "m")
+                
+                Spacer()
+                
+                Button {
+                    settings.paused.toggle()
+                } label: {
+                    if settings.paused {
+                        Image(systemName: "play")
+                    } else {
+                        Image(systemName: "pause")
+                    }
+                }
             }
         }
     }

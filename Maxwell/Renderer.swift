@@ -20,6 +20,9 @@ final class SimulationSettings {
     
     var Nx = 200
     var Ny = 200
+    
+    var width: Float = 2.0
+    var height: Float = 2.0
 }
 
 struct MetalView: NSViewRepresentable {
@@ -49,15 +52,17 @@ struct MetalView: NSViewRepresentable {
 
 class EzRenderPass: ComputePass {
     let pipeline: MTLComputePipelineState
-    var texturePass: () -> TextureRenderPass?
+    var texturePass: Reference<TextureRenderPass>
+    var cells: Reference<MTLSyncBuffer<GridCell>>
     
-    init(device: MTLDevice, library: MTLLibrary, texturePass: @escaping () -> TextureRenderPass?) {
+    init(device: MTLDevice, library: MTLLibrary, texturePass: Reference<TextureRenderPass>, cells: Reference<MTLSyncBuffer<GridCell>>) {
         self.texturePass = texturePass
         let function = library.makeFunction(name: "renderEz")!
         self.pipeline = try! device.makeComputePipelineState(function: function)
+        self.cells = cells
     }
     
-    func encodeCompute(_ commandBuffer: any MTLCommandBuffer) {
+    func encodeCompute(_ commandBuffer: any MTLCommandBuffer, uniforms: inout Uniforms) {
         guard let encoder = commandBuffer.makeComputeCommandEncoder() else {
             return
         }
@@ -66,11 +71,12 @@ class EzRenderPass: ComputePass {
         
         encoder.setComputePipelineState(pipeline)
         
-        guard let texture = self.texturePass()?.texture else {
-            return
-        }
+        let texture = texturePass.unwrap().texture
         
         encoder.setTexture(texture, index: 0)
+        
+        cells.unwrap().setAtEncoder(encoder, index: 0)
+        encoder.setBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
         
         let width = pipeline.threadExecutionWidth
         
@@ -86,6 +92,81 @@ class EzRenderPass: ComputePass {
     }
 }
 
+class EzUpdatePass: ComputePass {
+    let pipeline: MTLComputePipelineState
+    var cells: Reference<MTLSyncBuffer<GridCell>>
+    
+    init(device: MTLDevice, library: MTLLibrary, cells: Reference<MTLSyncBuffer<GridCell>>) {
+        self.cells = cells
+        let function = library.makeFunction(name: "updateEz")!
+        self.pipeline = try! device.makeComputePipelineState(function: function)
+    }
+    
+    func encodeCompute(_ commandBuffer: any MTLCommandBuffer, uniforms: inout Uniforms) {
+        guard let encoder = commandBuffer.makeComputeCommandEncoder()
+        else {
+            return
+        }
+        
+        encoder.label = "Update Ez"
+        
+        encoder.setComputePipelineState(pipeline)
+        
+        cells.unwrap().setAtEncoder(encoder, index: 0)
+        encoder.setBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
+        
+        let threadsPerGrid = MTLSize(width: Int(uniforms.Nx), height: Int(uniforms.Ny), depth: 1)
+        
+        let width = pipeline.threadExecutionWidth
+        
+        let height = max(1, pipeline.maxTotalThreadsPerThreadgroup / width)
+        
+        let threadsPerThreadgroup = MTLSize(width: width, height: height, depth: 1)
+        
+        encoder.dispatchThreads(threadsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
+        
+        encoder.endEncoding()
+    }
+}
+
+class HFieldUpdatePass: ComputePass {
+    let pipeline: MTLComputePipelineState
+    var cells: Reference<MTLSyncBuffer<GridCell>>
+    
+    init(device: MTLDevice, library: MTLLibrary, cells: Reference<MTLSyncBuffer<GridCell>>) {
+        self.cells = cells
+        let function = library.makeFunction(name: "updateH")!
+        self.pipeline = try! device.makeComputePipelineState(function: function)
+    }
+    
+    func encodeCompute(_ commandBuffer: any MTLCommandBuffer, uniforms: inout Uniforms) {
+        guard let encoder = commandBuffer.makeComputeCommandEncoder()
+        else {
+            return
+        }
+        
+        encoder.label = "Update H Field"
+        
+        encoder.setComputePipelineState(pipeline)
+        
+        cells.unwrap().setAtEncoder(encoder, index: 0)
+        encoder.setBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
+        
+        let threadsPerGrid = MTLSize(width: Int(uniforms.Nx), height: Int(uniforms.Ny), depth: 1)
+        
+        let width = pipeline.threadExecutionWidth
+        
+        let height = max(1, pipeline.maxTotalThreadsPerThreadgroup / width)
+        
+        let threadsPerThreadgroup = MTLSize(width: width, height: height, depth: 1)
+        
+        encoder.dispatchThreads(threadsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
+        
+        encoder.endEncoding()
+    }
+}
+
+
 final class Renderer: NSObject, MTKViewDelegate {
     let device: MTLDevice
     
@@ -94,6 +175,11 @@ final class Renderer: NSObject, MTKViewDelegate {
     private let commandQueue: MTLCommandQueue
     private let texturePass: TextureRenderPass
     private let ezRenderPass: EzRenderPass
+    
+    private let ezUpdatePass: EzUpdatePass
+    private let hUpdatePass: HFieldUpdatePass
+    
+    private var cells: MTLSyncBuffer<GridCell>
     
     private var uniforms: Uniforms
     
@@ -117,16 +203,51 @@ final class Renderer: NSObject, MTKViewDelegate {
         }
         
         self.texturePass = TextureRenderPass(device: device, library: library)
-        self.ezRenderPass = EzRenderPass(device: device, library: library, texturePass: { nil })
+        self.ezRenderPass = EzRenderPass(device: device, library: library, texturePass: Reference(), cells: Reference())
+        self.cells = MTLSyncBuffer(device: device, values: Renderer.makeCells(nx: settings.Nx, ny: settings.Ny))
+        
+        self.ezUpdatePass = EzUpdatePass(device: device, library: library, cells: Reference())
+        self.hUpdatePass = HFieldUpdatePass(device: device, library: library, cells: Reference())
         self.uniforms = Uniforms()
     }
     
+    static func makeCells(nx: Int, ny: Int) -> [GridCell] {
+        return Array(repeating: GridCell(Ez: 0, H: .zero), count: nx * ny)
+    }
+    
     func updateRenderTexture(view: MTKView) {
-        self.ezRenderPass.texturePass = { self.texturePass }
-        self.texturePass.updateTexture(for: view.frame)
+        ezRenderPass.texturePass.value = texturePass
+        texturePass.updateTexture(for: view.frame)
+    }
+    
+    func calculateDt(dx: Float, dy: Float) -> Float {
+        let c: Float = 299_792_459.0
+        
+        let dtMaxDenom = sqrt(1.0 / (dx * dx) + 1.0 / (dy * dy))
+        let dtMax = 1.0 / (c * dtMaxDenom)
+        let courant: Float = 0.95
+        return courant * dtMax;
+    }
+    
+    func updateUniforms(view: MTKView) {
+        self.ezRenderPass.cells.value = cells
+        self.ezUpdatePass.cells.value = cells
+        self.hUpdatePass.cells.value = cells
+        
+        uniforms.dx = settings.width / Float(settings.Nx)
+        uniforms.dy = settings.height / Float(settings.Ny)
+        
+        uniforms.dt = calculateDt(dx: uniforms.dx, dy: uniforms.dy)
+        
+        uniforms.Nx = UInt32(settings.Nx)
+        uniforms.Ny = UInt32(settings.Ny)
     }
     
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+        updateRenderTexture(view: view)
+    }
+    
+    func draw(in view: MTKView) {
         guard let commandBuffer = commandQueue.makeCommandBuffer(),
               let descriptor = view.currentRenderPassDescriptor,
               let drawable = view.currentDrawable
@@ -135,13 +256,16 @@ final class Renderer: NSObject, MTKViewDelegate {
         }
         
         updateRenderTexture(view: view)
+        updateUniforms(view: view)
         
-        ezRenderPass.encodeCompute(commandBuffer)
-        texturePass.encode(commandBuffer, descriptor: descriptor)
+        if !settings.paused {
+            hUpdatePass.encodeCompute(commandBuffer, uniforms: &uniforms)
+            ezUpdatePass.encodeCompute(commandBuffer, uniforms: &uniforms)
+        }
+        ezRenderPass.encodeCompute(commandBuffer, uniforms: &uniforms)
+        texturePass.encode(commandBuffer, descriptor: descriptor, uniforms: &uniforms)
         
         commandBuffer.present(drawable)
         commandBuffer.commit()
     }
-    
-    func draw(in view: MTKView) {}
 }

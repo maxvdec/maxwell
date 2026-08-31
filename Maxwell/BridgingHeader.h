@@ -12,16 +12,18 @@
 
 struct GridCell {
     float Ez;
-    float2 H;
+    simd_float2 H;
 };
 
 struct Uniforms {
-    float Nx;
-    float Ny;
+    unsigned int Nx;
+    unsigned int Ny;
     float dt;
     
     float dx;
     float dy;
+    
+    float visualizationScale;
 };
 
 
