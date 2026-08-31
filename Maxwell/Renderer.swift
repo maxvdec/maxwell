@@ -231,6 +231,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     private var uniforms: Uniforms
     private var simTime: Float = 0.0
     
+    private var stepSingle: Bool = false
+    
     init(settings: SimulationSettings) {
         self.settings = settings
         
@@ -316,6 +318,32 @@ final class Renderer: NSObject, MTKViewDelegate {
         updateRenderTexture(view: view)
     }
     
+    func stepFrame(commandBuffer: MTLCommandBuffer) {
+        for _ in 0..<settings.stepsPerFrame {
+            uniforms.t = simTime
+            
+            hUpdatePass.encodeCompute(
+                commandBuffer,
+                uniforms: &uniforms
+            )
+            
+            ezUpdatePass.encodeCompute(
+                commandBuffer,
+                uniforms: &uniforms
+            )
+            
+            if !settings.reflectWalls {
+                ezBoundaryPass.encodeCompute(commandBuffer, uniforms: &uniforms)
+            }
+            
+            simTime += uniforms.dt
+        }
+    }
+    
+    func stepOneFrame() {
+        stepSingle = true
+    }
+    
     func draw(in view: MTKView) {
         guard let commandBuffer = commandQueue.makeCommandBuffer(),
               let descriptor = view.currentRenderPassDescriptor,
@@ -329,26 +357,14 @@ final class Renderer: NSObject, MTKViewDelegate {
         updateUniforms(view: view)
         
         if !settings.paused {
-            for _ in 0..<settings.stepsPerFrame {
-                uniforms.t = simTime
-
-                hUpdatePass.encodeCompute(
-                    commandBuffer,
-                    uniforms: &uniforms
-                )
-
-                ezUpdatePass.encodeCompute(
-                    commandBuffer,
-                    uniforms: &uniforms
-                )
-                
-                if !settings.reflectWalls {
-                    ezBoundaryPass.encodeCompute(commandBuffer, uniforms: &uniforms)
-                }
-
-                simTime += uniforms.dt
-            }
+            stepFrame(commandBuffer: commandBuffer)
         }
+        
+        if stepSingle {
+            stepFrame(commandBuffer: commandBuffer)
+            stepSingle = false
+        }
+        
         ezRenderPass.encodeCompute(commandBuffer, uniforms: &uniforms)
         gaussianHorizontal.encodeCompute(commandBuffer, uniforms: &uniforms)
         gaussianVertical.encodeCompute(commandBuffer, uniforms: &uniforms)

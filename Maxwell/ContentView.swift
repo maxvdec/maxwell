@@ -121,6 +121,18 @@ struct ParametersView: View {
                 }
             }
         }
+        .onKeyPress(.rightArrow) {
+            renderer.stepOneFrame()
+            return .handled
+        }
+        .onKeyPress(.space) {
+            settings.paused.toggle()
+            return .handled
+        }
+        .onKeyPress(.leftArrow) {
+            renderer.resetSimulation()
+            return .handled
+        }
     }
 }
 
