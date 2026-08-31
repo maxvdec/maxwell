@@ -18,8 +18,8 @@ import SwiftUI
 final class SimulationSettings {
     var paused = true
     
-    var Nx = 200
-    var Ny = 200
+    var Nx = 500
+    var Ny = 500
     
     var width: Float = 2.0
     var height: Float = 2.0
@@ -135,6 +135,41 @@ class EzUpdatePass: ComputePass {
     }
 }
 
+class EzBoundaryPass: ComputePass {
+    let pipeline: MTLComputePipelineState
+    var cells: Reference<MTLSyncBuffer<GridCell>>
+    
+    init(device: MTLDevice, library: MTLLibrary, cells: Reference<MTLSyncBuffer<GridCell>>) {
+        self.cells = cells
+        let function = library.makeFunction(name: "absorbEzBoundary")!
+        self.pipeline = try! device.makeComputePipelineState(function: function)
+    }
+    
+    func encodeCompute(_ commandBuffer: any MTLCommandBuffer, uniforms: inout Uniforms) {
+        guard let encoder = commandBuffer.makeComputeCommandEncoder()
+        else {
+            return
+        }
+        
+        encoder.label = "Absorb Ez Boundary"
+        
+        encoder.setComputePipelineState(pipeline)
+        
+        cells.unwrap().setAtEncoder(encoder, index: 0)
+        encoder.setBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
+        
+        let threadsPerGrid = MTLSize(width: Int(max(uniforms.Nx, uniforms.Ny)), height: 1, depth: 1)
+        
+        let width = pipeline.threadExecutionWidth
+        
+        let threadsPerThreadgroup = MTLSize(width: width, height: 1, depth: 1)
+        
+        encoder.dispatchThreads(threadsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
+        
+        encoder.endEncoding()
+    }
+}
+
 class HFieldUpdatePass: ComputePass {
     let pipeline: MTLComputePipelineState
     var cells: Reference<MTLSyncBuffer<GridCell>>
@@ -183,6 +218,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     private let ezRenderPass: EzRenderPass
     
     private let ezUpdatePass: EzUpdatePass
+    private let ezBoundaryPass: EzBoundaryPass
     private let hUpdatePass: HFieldUpdatePass
     
     private var cells: MTLSyncBuffer<GridCell>
@@ -214,12 +250,13 @@ final class Renderer: NSObject, MTKViewDelegate {
         self.cells = MTLSyncBuffer(device: device, values: Renderer.makeCells(nx: settings.Nx, ny: settings.Ny))
         
         self.ezUpdatePass = EzUpdatePass(device: device, library: library, cells: Reference())
+        self.ezBoundaryPass = EzBoundaryPass(device: device, library: library, cells: Reference())
         self.hUpdatePass = HFieldUpdatePass(device: device, library: library, cells: Reference())
         self.uniforms = Uniforms()
     }
     
     static func makeCells(nx: Int, ny: Int) -> [GridCell] {
-        return Array(repeating: GridCell(Ez: 0, H: .zero), count: nx * ny)
+        return Array(repeating: GridCell(Ez: 0, previousEz: 0, H: .zero), count: nx * ny)
     }
     
     func updateRenderTexture(view: MTKView) {
@@ -230,6 +267,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     func updateUniforms(view: MTKView) {
         self.ezRenderPass.cells.value = cells
         self.ezUpdatePass.cells.value = cells
+        self.ezBoundaryPass.cells.value = cells
         self.hUpdatePass.cells.value = cells
         
         uniforms.dx = settings.width / Float(settings.Nx)
@@ -288,6 +326,10 @@ final class Renderer: NSObject, MTKViewDelegate {
                     commandBuffer,
                     uniforms: &uniforms
                 )
+                
+                if !settings.reflectWalls {
+                    ezBoundaryPass.encodeCompute(commandBuffer, uniforms: &uniforms)
+                }
 
                 simTime += uniforms.dt
             }

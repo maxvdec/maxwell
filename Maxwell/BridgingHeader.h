@@ -12,6 +12,7 @@
 
 struct GridCell {
     float Ez;
+    float previousEz;
     simd_float2 H;
 };
 
@@ -28,7 +29,7 @@ struct Uniforms {
     float t;
     float sourceFrequency;
     
-    uint reflectingWalls;
+    unsigned int reflectingWalls;
 };
 
 

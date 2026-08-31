@@ -131,22 +131,77 @@ struct IntField: View {
 
     let title: String
     let unit: String
+    let isZeroPermitted: Bool
+    let dragSensitivity: Float
 
     @State private var text: String = ""
+    @State private var dragStartValue: Int?
+    @State private var isDragging = false
 
     init(
         _ title: String,
         value: Binding<Int>,
-        unit: String
+        unit: String,
+        isZeroPermitted: Bool = false,
+        dragSensitivity: Float = 0.1
     ) {
         self.title = title
         self._value = value
         self.unit = unit
+        self.isZeroPermitted = isZeroPermitted
+        self.dragSensitivity = dragSensitivity
     }
 
     var body: some View {
         HStack {
             Text(title)
+                .contentShape(Rectangle())
+                .onHover { hovering in
+                    if hovering {
+                        NSCursor.resizeLeftRight.set()
+                    } else {
+                        NSCursor.arrow.set()
+                    }
+                }
+                .gesture(
+                    DragGesture(minimumDistance: 1)
+                        .onChanged { gesture in
+                            if dragStartValue == nil {
+                                dragStartValue = value
+                                isDragging = true
+                            }
+
+                            guard let startValue = dragStartValue else {
+                                return
+                            }
+
+                            var sensitivity = dragSensitivity
+
+                            if NSEvent.modifierFlags.contains(.shift) {
+                                sensitivity *= 0.1
+                            }
+
+                            var newValue =
+                                startValue
+                                + Int(
+                                    round(
+                                        Float(gesture.translation.width)
+                                            * sensitivity
+                                    )
+                                )
+
+                            if !isZeroPermitted && newValue == 0 {
+                                newValue = gesture.translation.width >= 0 ? 1 : -1
+                            }
+
+                            value = newValue
+                            text = format(newValue)
+                        }
+                        .onEnded { _ in
+                            dragStartValue = nil
+                            isDragging = false
+                        }
+                )
 
             Spacer()
 
@@ -155,9 +210,19 @@ struct IntField: View {
                 .frame(width: 90)
                 .textFieldStyle(.roundedBorder)
                 .onChange(of: text) { _, newValue in
-                    if let number = Int(newValue) {
-                        value = number
+                    guard !isDragging else {
+                        return
                     }
+
+                    guard let number = Int(newValue) else {
+                        return
+                    }
+
+                    if number == 0 && !isZeroPermitted {
+                        return
+                    }
+
+                    value = number
                 }
 
             Text(unit)
@@ -168,6 +233,10 @@ struct IntField: View {
             text = format(value)
         }
         .onChange(of: value) { _, newValue in
+            guard !isDragging else {
+                return
+            }
+
             if Int(text) != newValue {
                 text = format(newValue)
             }

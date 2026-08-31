@@ -15,19 +15,26 @@ inline uint gridIndex(uint x, uint y, uint Nx) {
     return y * Nx + x;
 }
 
-inline float boundaryDamping(uint2 id, uint Nx, uint Ny, uint thickness) {
+inline float boundaryDamping(
+    uint2 id,
+    uint Nx,
+    uint Ny,
+    uint thickness
+) {
     uint dx = min(id.x, Nx - 1 - id.x);
     uint dy = min(id.y, Ny - 1 - id.y);
-    
+
     uint d = min(dx, dy);
-    
+
     if (d >= thickness) {
         return 1.0;
     }
-    
-    float x = float(d) / float(thickness);
-    
-    return x * x;
+
+    float t = float(thickness - d) / float(thickness);
+
+    float strength = 0.4;
+
+    return exp(-strength * t * t);
 }
 
 #endif /* MetalUtils_h */
