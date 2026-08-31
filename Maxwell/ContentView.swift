@@ -39,6 +39,7 @@ struct MyApp: App {
                         windowHeight = size.height
                     }
                 }
+                .preferredColorScheme(.dark)
         }
         .defaultSize(
             width: windowWidth,
