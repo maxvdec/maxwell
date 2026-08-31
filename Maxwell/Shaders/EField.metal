@@ -10,9 +10,39 @@
 #include "./MetalUtils.h"
 using namespace metal;
 
+enum SourceForm : uint {
+    FORM_SINE = 0,
+    FORM_PULSE = 1,
+    FORM_GAUSSIAN = 2
+};
+
+enum SourceType : uint {
+    TYPE_LINE = 0,
+    TYPE_POINT = 1,
+    TYPE_BEAM = 2,
+};
+
+float sourceContribution(uint2 id, constant ElectricSource* sources, constant Uniforms& uniforms) {
+    float contribution = 0.0;
+    
+    for (uint i = 0; i < uniforms.sourceCount; i++) {
+        ElectricSource source = sources[i];
+        if (source.position.x == id.x && source.position.y == id.y) {
+            // Just handle point, sine functions
+            if (source.type == TYPE_POINT && source.form == FORM_SINE) {
+                contribution += source.amplitude * sin(2.0 * M_PI_F * source.frequency * uniforms.t + source.phase);
+            }
+        }
+    }
+    
+    return contribution;
+}
 
 
-kernel void updateEz(device GridCell* cells [[buffer(0)]], constant Uniforms& uniforms [[buffer(1)]], uint2 id [[thread_position_in_grid]]) {
+kernel void updateEz(device GridCell* cells [[buffer(0)]],
+                     constant Uniforms& uniforms [[buffer(1)]],
+                     constant ElectricSource* sources [[buffer(2)]],
+                     uint2 id [[thread_position_in_grid]]) {
     if (id.x >= uniforms.Nx || id.y >= uniforms.Ny) {
         return;
     }
@@ -55,9 +85,7 @@ kernel void updateEz(device GridCell* cells [[buffer(0)]], constant Uniforms& un
     
     current.Ez = caE * current.Ez + cbE * (leftDiff - downDiff);
     
-    if (id.x == uniforms.Nx / 2 && id.y == uniforms.Ny / 2) {
-        current.Ez += sin(2.0 * M_PI_F * uniforms.sourceFrequency * uniforms.t);
-    }
+    current.Ez += sourceContribution(id, sources, uniforms);
     
     cells[index] = current;
 }

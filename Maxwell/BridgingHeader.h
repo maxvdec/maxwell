@@ -15,6 +15,15 @@ struct GridCell {
     simd_float2 H;
 };
 
+struct ElectricSource {
+    simd_uint2 position;
+    float frequency;
+    float amplitude;
+    float phase;
+    unsigned int type; // 0 -> line, 1 -> point, 2 -> beam
+    unsigned int form; // 0 -> sine, 1 -> pulse, 2 -> gaussian pulse
+};
+
 struct Uniforms {
     unsigned int Nx;
     unsigned int Ny;
@@ -31,6 +40,8 @@ struct Uniforms {
     unsigned int reflectingWalls;
     
     unsigned int pmlThickness;
+    
+    unsigned int sourceCount;
 };
 
 

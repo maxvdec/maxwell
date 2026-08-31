@@ -28,7 +28,7 @@ final class SimulationSettings {
     var sourceFrequency: Float = 1.0 // In GHz
     var cellsPerWavelength: Float = 20.0
     
-    var visualizationScale: Float = 30.0
+    var visualizationScale: Float = 15.0
     
     var reflectWalls: Bool = false
     var stepsPerFrame: Int = 3
@@ -45,6 +45,8 @@ struct MetalView: NSViewRepresentable {
         
         view.device = renderer.device
         view.delegate = renderer
+        
+        renderer.mtkView(view, drawableSizeWillChange: .zero)
         
         view.colorPixelFormat = .bgra8Unorm
         
@@ -107,9 +109,11 @@ class EzRenderPass: ComputePass {
 class EzUpdatePass: ComputePass {
     let pipeline: MTLComputePipelineState
     var cells: Reference<MTLSyncBuffer<GridCell>>
+    var sources: Reference<MTLSyncBuffer<ElectricSource>>
     
-    init(device: MTLDevice, library: MTLLibrary, cells: Reference<MTLSyncBuffer<GridCell>>) {
+    init(device: MTLDevice, library: MTLLibrary, cells: Reference<MTLSyncBuffer<GridCell>>, sources: Reference<MTLSyncBuffer<ElectricSource>>) {
         self.cells = cells
+        self.sources = sources
         let function = library.makeFunction(name: "updateEz")!
         self.pipeline = try! device.makeComputePipelineState(function: function)
     }
@@ -126,6 +130,7 @@ class EzUpdatePass: ComputePass {
         
         cells.unwrap().setAtEncoder(encoder, index: 0)
         encoder.setBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
+        sources.unwrap().setAtEncoder(encoder, index: 2)
         
         let threadsPerGrid = MTLSize(width: Int(uniforms.Nx), height: Int(uniforms.Ny), depth: 1)
         
@@ -195,6 +200,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     private let hUpdatePass: HFieldUpdatePass
     
     private var cells: MTLSyncBuffer<GridCell>
+    private var sources: MTLSyncBuffer<ElectricSource>
     
     private var uniforms: Uniforms
     private var simTime: Float = 0.0
@@ -242,14 +248,18 @@ final class Renderer: NSObject, MTKViewDelegate {
         
         self.cells = MTLSyncBuffer(device: device, values: Renderer.makeCells(nx: settings.Nx + 2 * settings.pmlThickness, ny: settings.Ny + 2 * settings.pmlThickness))
         
-        self.ezUpdatePass = EzUpdatePass(device: device, library: library, cells: Reference())
+        self.ezUpdatePass = EzUpdatePass(device: device, library: library, cells: Reference(), sources: Reference())
         self.hUpdatePass = HFieldUpdatePass(device: device, library: library, cells: Reference())
         self.uniforms = Uniforms()
-        
+        self.sources = MTLSyncBuffer(device: device, values: [ElectricSource()])
     }
     
     static func makeCells(nx: Int, ny: Int) -> [GridCell] {
         return Array(repeating: GridCell(Ez: 0, H: .zero), count: nx * ny)
+    }
+    
+    func addSource(_ source: ElectricSource) {
+        self.sources.append(source)
     }
     
     func updateRenderTexture(view: MTKView) {
@@ -264,6 +274,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     func updateUniforms(view: MTKView) {
         self.ezRenderPass.cells.value = cells
         self.ezUpdatePass.cells.value = cells
+        self.ezUpdatePass.sources.value = sources
         self.hUpdatePass.cells.value = cells
         
         self.gaussianVertical.blurAmount = settings.blurAmount
