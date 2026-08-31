@@ -99,6 +99,7 @@ struct ParametersView: View {
                 Divider()
                 
                 FloatField("Visualization Scale", value: $settings.visualizationScale, unit: "")
+                FloatField("Blur Amount", value: $settings.blurAmount, unit: "")
                 
                 Spacer()
                 

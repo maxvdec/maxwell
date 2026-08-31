@@ -126,6 +126,115 @@ class TextureRenderPass: RenderPass {
     }
 }
 
+func gaussianWeights(radius: Int, sigma: Float) -> [Float] {
+    var weights = [Float]()
+
+    var sum: Float = 0
+
+    for x in 0...radius {
+        let xf = Float(x)
+
+        let weight = exp(
+            -(xf * xf) / (2 * sigma * sigma)
+        )
+
+        weights.append(weight)
+
+        if x == 0 {
+            sum += weight
+        } else {
+            sum += weight * 2
+        }
+    }
+
+    for i in weights.indices {
+        weights[i] /= sum
+    }
+
+    return weights
+}
+
+class GaussianBlurPass: ComputePass {
+    var inTexture: Reference<MTLTexture>
+    var outTexture: MTLTexture
+    let pipeline: MTLComputePipelineState
+    let device: MTLDevice
+    var blurAmount: Float = 2.0
+
+    init(
+        device: MTLDevice,
+        library: MTLLibrary,
+        inTexture: Reference<MTLTexture>,
+        isHorizontal: Bool
+    ) {
+        self.outTexture = createRenderTexture(device: device, width: 1, height: 1)
+        self.inTexture = inTexture
+        self.device = device
+        
+        if isHorizontal {
+            let function = library.makeFunction(name: "gaussianBlurHorizontal")!
+            self.pipeline = try! device.makeComputePipelineState(function: function)
+        } else {
+            let function = library.makeFunction(name: "gaussianBlurVertical")!
+            self.pipeline = try! device.makeComputePipelineState(function: function)
+        }
+    }
+    
+    func updateTexture() {
+        let texture = self.inTexture.unwrap()
+        if texture.width != outTexture.width || texture.height != outTexture.height {
+            self.outTexture = createRenderTexture(device: device, width: texture.width, height: texture.height)
+        }
+    }
+
+    func encodeCompute(
+        _ commandBuffer: any MTLCommandBuffer,
+        uniforms: inout Uniforms
+    ) {
+        guard let encoder = commandBuffer.makeComputeCommandEncoder() else {
+            return
+        }
+
+        encoder.label = "Gaussian Blur Horizontal"
+        
+        encoder.setComputePipelineState(pipeline)
+        
+        let texture = inTexture.unwrap()
+        
+        encoder.setTexture(texture, index: 0)
+        encoder.setTexture(outTexture, index: 1)
+        
+        let radius = Int(ceil(blurAmount * 3))
+        let sigma = max(blurAmount, 0.001)
+        
+        var weights = gaussianWeights(radius: radius, sigma: sigma)
+        
+        weights.withUnsafeBytes { rawBuffer in
+            encoder.setBytes(
+                rawBuffer.baseAddress!,
+                length: rawBuffer.count,
+                index: 0
+            )
+        }
+        
+        var radius32 = UInt32(radius)
+        
+        encoder.setBytes(&radius32, length: MemoryLayout<UInt32>.stride, index: 1)
+        
+        let width = pipeline.threadExecutionWidth
+        
+        let height = max(1, pipeline.maxTotalThreadsPerThreadgroup / width)
+        
+        let threadsPerThreadgroup = MTLSize(width: width, height: height, depth: 1)
+        
+        let threadsPerGrid = MTLSize(width: texture.width, height: texture.height, depth: 1)
+        
+        encoder.dispatchThreads(threadsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
+        
+        encoder.endEncoding()
+    }
+}
+
 struct IntField: View {
     @Binding var value: Int
 

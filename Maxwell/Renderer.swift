@@ -25,10 +25,12 @@ final class SimulationSettings {
     var height: Float = 2.0
     
     var sourceFrequency: Float = 1.0 // In GHz
-    var visualizationScale: Float = 15.0
+    var visualizationScale: Float = 30.0
     
     var reflectWalls: Bool = false
-    var stepsPerFrame: Int = 1
+    var stepsPerFrame: Int = 3
+    
+    var blurAmount: Float = 7.0
 }
 
 struct MetalView: NSViewRepresentable {
@@ -214,7 +216,10 @@ final class Renderer: NSObject, MTKViewDelegate {
     var settings: SimulationSettings
     
     private let commandQueue: MTLCommandQueue
+    
     private let texturePass: TextureRenderPass
+    private let gaussianHorizontal: GaussianBlurPass
+    private let gaussianVertical: GaussianBlurPass
     private let ezRenderPass: EzRenderPass
     
     private let ezUpdatePass: EzUpdatePass
@@ -247,6 +252,9 @@ final class Renderer: NSObject, MTKViewDelegate {
         
         self.texturePass = TextureRenderPass(device: device, library: library)
         self.ezRenderPass = EzRenderPass(device: device, library: library, texturePass: Reference(), cells: Reference())
+        self.gaussianHorizontal = GaussianBlurPass(device: device, library: library, inTexture: Reference(), isHorizontal: true)
+        self.gaussianVertical = GaussianBlurPass(device: device, library: library, inTexture: Reference(), isHorizontal: false)
+        
         self.cells = MTLSyncBuffer(device: device, values: Renderer.makeCells(nx: settings.Nx, ny: settings.Ny))
         
         self.ezUpdatePass = EzUpdatePass(device: device, library: library, cells: Reference())
@@ -262,6 +270,10 @@ final class Renderer: NSObject, MTKViewDelegate {
     func updateRenderTexture(view: MTKView) {
         ezRenderPass.texturePass.value = texturePass
         texturePass.updateTexture(for: view.frame)
+        gaussianHorizontal.inTexture.value = self.texturePass.texture
+        gaussianHorizontal.updateTexture()
+        gaussianVertical.inTexture.value = gaussianHorizontal.outTexture
+        gaussianVertical.updateTexture()
     }
     
     func updateUniforms(view: MTKView) {
@@ -269,6 +281,9 @@ final class Renderer: NSObject, MTKViewDelegate {
         self.ezUpdatePass.cells.value = cells
         self.ezBoundaryPass.cells.value = cells
         self.hUpdatePass.cells.value = cells
+        
+        self.gaussianVertical.blurAmount = settings.blurAmount
+        self.gaussianHorizontal.blurAmount = settings.blurAmount
         
         uniforms.dx = settings.width / Float(settings.Nx)
         uniforms.dy = settings.height / Float(settings.Ny)
@@ -335,6 +350,10 @@ final class Renderer: NSObject, MTKViewDelegate {
             }
         }
         ezRenderPass.encodeCompute(commandBuffer, uniforms: &uniforms)
+        gaussianHorizontal.encodeCompute(commandBuffer, uniforms: &uniforms)
+        gaussianVertical.encodeCompute(commandBuffer, uniforms: &uniforms)
+        
+        texturePass.texture = gaussianVertical.outTexture
         texturePass.encode(commandBuffer, descriptor: descriptor, uniforms: &uniforms)
         
         commandBuffer.present(drawable)
