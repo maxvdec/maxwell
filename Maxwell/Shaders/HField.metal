@@ -36,6 +36,9 @@ kernel void updateH(device GridCell* cells [[buffer(0)]], constant Uniforms& uni
     cell.H.x -= coeffY * (up.Ez - cell.Ez);
     cell.H.y += coeffX * (right.Ez - cell.Ez);
     
+    float damping = boundaryDamping(id, uniforms.Nx, uniforms.Ny, 20);
+    cell.H *= damping;
+    
     cells[index] = cell;
 }
 

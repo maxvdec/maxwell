@@ -10,6 +10,8 @@
 #include "./MetalUtils.h"
 using namespace metal;
 
+
+
 kernel void updateEz(device GridCell* cells [[buffer(0)]], constant Uniforms& uniforms [[buffer(1)]], uint2 id [[thread_position_in_grid]]) {
     if (id.x >= uniforms.Nx || id.y >= uniforms.Ny) {
         return;
@@ -36,5 +38,14 @@ kernel void updateEz(device GridCell* cells [[buffer(0)]], constant Uniforms& un
     float downDiff = (current.H.x - down.H.x) / uniforms.dy;
     
     current.Ez += coefficient * (leftDiff - downDiff);
+    
+    // Inject a source
+    if (id.x == uniforms.Nx / 2 && id.y == uniforms.Ny / 2) {
+        current.Ez += sin(2.0 * M_PI_F * uniforms.sourceFrequency * uniforms.t);
+    }
+    
+    float damping = boundaryDamping(id, uniforms.Nx, uniforms.Ny, 20);
+    current.Ez *= damping;
+    
     cells[index] = current;
 }

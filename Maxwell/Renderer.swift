@@ -23,6 +23,12 @@ final class SimulationSettings {
     
     var width: Float = 2.0
     var height: Float = 2.0
+    
+    var sourceFrequency: Float = 1.0 // In GHz
+    var visualizationScale: Float = 15.0
+    
+    var reflectWalls: Bool = false
+    var stepsPerFrame: Int = 1
 }
 
 struct MetalView: NSViewRepresentable {
@@ -182,6 +188,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     private var cells: MTLSyncBuffer<GridCell>
     
     private var uniforms: Uniforms
+    private var simTime: Float = 0.0
     
     init(settings: SimulationSettings) {
         self.settings = settings
@@ -220,15 +227,6 @@ final class Renderer: NSObject, MTKViewDelegate {
         texturePass.updateTexture(for: view.frame)
     }
     
-    func calculateDt(dx: Float, dy: Float) -> Float {
-        let c: Float = 299_792_459.0
-        
-        let dtMaxDenom = sqrt(1.0 / (dx * dx) + 1.0 / (dy * dy))
-        let dtMax = 1.0 / (c * dtMaxDenom)
-        let courant: Float = 0.95
-        return courant * dtMax;
-    }
-    
     func updateUniforms(view: MTKView) {
         self.ezRenderPass.cells.value = cells
         self.ezUpdatePass.cells.value = cells
@@ -241,6 +239,24 @@ final class Renderer: NSObject, MTKViewDelegate {
         
         uniforms.Nx = UInt32(settings.Nx)
         uniforms.Ny = UInt32(settings.Ny)
+        
+        uniforms.sourceFrequency = settings.sourceFrequency * 1e9 // Transform to Hz
+        
+        uniforms.visualizationScale = settings.visualizationScale
+        uniforms.reflectingWalls = settings.reflectWalls ? 1 : 0
+    }
+    
+    func resetSimulation() {
+        uniforms.t = 0
+        settings.paused = true
+        
+        cells.assign(new: Renderer.makeCells(nx: settings.Nx, ny: settings.Ny))
+    }
+    
+    func checkRemakeCells() {
+        if cells.count != settings.Nx * settings.Ny {
+            resetSimulation()
+        }
     }
     
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -255,12 +271,26 @@ final class Renderer: NSObject, MTKViewDelegate {
             return
         }
         
+        checkRemakeCells()
         updateRenderTexture(view: view)
         updateUniforms(view: view)
         
         if !settings.paused {
-            hUpdatePass.encodeCompute(commandBuffer, uniforms: &uniforms)
-            ezUpdatePass.encodeCompute(commandBuffer, uniforms: &uniforms)
+            for _ in 0..<settings.stepsPerFrame {
+                uniforms.t = simTime
+
+                hUpdatePass.encodeCompute(
+                    commandBuffer,
+                    uniforms: &uniforms
+                )
+
+                ezUpdatePass.encodeCompute(
+                    commandBuffer,
+                    uniforms: &uniforms
+                )
+
+                simTime += uniforms.dt
+            }
         }
         ezRenderPass.encodeCompute(commandBuffer, uniforms: &uniforms)
         texturePass.encode(commandBuffer, descriptor: descriptor, uniforms: &uniforms)

@@ -81,15 +81,41 @@ struct ParametersView: View {
                 FloatField("Width", value: $settings.width, unit: "m")
                 FloatField("Height", value: $settings.height, unit: "m")
                 
+                IntField("Steps per frame", value: $settings.stepsPerFrame, unit: "")
+                
+                Toggle(isOn: $settings.reflectWalls) {
+                    Text("Walls Reflect")
+                }
+                
+                Divider()
+                
+                FloatField("Source Frequency", value: $settings.sourceFrequency, unit: "GHz")
+                Button {
+                    calculateFrequency(cellsPerWavelength: 20, settings: &settings)
+                } label: {
+                    Text("Calculate frequency")
+                }
+                
+                Divider()
+                
+                FloatField("Visualization Scale", value: $settings.visualizationScale, unit: "")
+                
                 Spacer()
                 
-                Button {
-                    settings.paused.toggle()
-                } label: {
-                    if settings.paused {
-                        Image(systemName: "play")
-                    } else {
-                        Image(systemName: "pause")
+                HStack {
+                    Button {
+                        settings.paused.toggle()
+                    } label: {
+                        if settings.paused {
+                            Image(systemName: "play")
+                        } else {
+                            Image(systemName: "pause")
+                        }
+                    }
+                    Button {
+                        renderer.resetSimulation()
+                    } label: {
+                        Image(systemName: "arrow.trianglehead.counterclockwise")
                     }
                 }
             }

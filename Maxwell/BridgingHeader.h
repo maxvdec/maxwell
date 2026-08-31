@@ -24,6 +24,11 @@ struct Uniforms {
     float dy;
     
     float visualizationScale;
+    
+    float t;
+    float sourceFrequency;
+    
+    uint reflectingWalls;
 };
 
 
