@@ -77,7 +77,17 @@ struct ParametersView: View {
                 
                 IntField("Nx", value: $settings.Nx, unit: "")
                 IntField("Ny", value: $settings.Ny, unit: "")
+                Button {
+                    let gridConfig = gridConfiguration(for: renderer.drawableSize, maxCells: settings.Nx, physicalWidth: settings.width)
+                    settings.Nx = gridConfig.nx
+                    settings.Ny = gridConfig.ny
+                    settings.width = gridConfig.width
+                    settings.height = gridConfig.height
+                } label: {
+                    Text("Match grid (max is Nx, width is Width)")
+                }
                 IntField("PML Thickness", value: $settings.pmlThickness, unit: "")
+                
                 
                 FloatField("Width", value: $settings.width, unit: "m")
                 FloatField("Height", value: $settings.height, unit: "m")
@@ -91,8 +101,9 @@ struct ParametersView: View {
                 Divider()
                 
                 FloatField("Source Frequency", value: $settings.sourceFrequency, unit: "GHz")
+                FloatField("Cells per wavelength", value: $settings.cellsPerWavelength, unit: "")
                 Button {
-                    calculateFrequency(cellsPerWavelength: 20, settings: &settings)
+                    calculateFrequency(cellsPerWavelength: settings.cellsPerWavelength, settings: &settings)
                 } label: {
                     Text("Calculate frequency")
                 }

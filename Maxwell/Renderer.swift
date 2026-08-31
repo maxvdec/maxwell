@@ -26,12 +26,15 @@ final class SimulationSettings {
     var height: Float = 2.0
     
     var sourceFrequency: Float = 1.0 // In GHz
+    var cellsPerWavelength: Float = 20.0
+    
     var visualizationScale: Float = 30.0
     
     var reflectWalls: Bool = false
     var stepsPerFrame: Int = 3
     
     var blurAmount: Float = 7.0
+    
 }
 
 struct MetalView: NSViewRepresentable {
@@ -198,6 +201,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     
     private var stepSingle: Bool = false
     
+    var drawableSize: CGSize = .zero
+    
     var effectivePMLThickness: Int {
         settings.reflectWalls ? 0 : settings.pmlThickness
     }
@@ -240,6 +245,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         self.ezUpdatePass = EzUpdatePass(device: device, library: library, cells: Reference())
         self.hUpdatePass = HFieldUpdatePass(device: device, library: library, cells: Reference())
         self.uniforms = Uniforms()
+        
     }
     
     static func makeCells(nx: Int, ny: Int) -> [GridCell] {
@@ -296,6 +302,14 @@ final class Renderer: NSObject, MTKViewDelegate {
     
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
         updateRenderTexture(view: view)
+        self.drawableSize = view.drawableSize
+        
+        let gridConfig = gridConfiguration(for: drawableSize, maxCells: settings.Nx, physicalWidth: settings.width)
+        settings.Nx = gridConfig.nx
+        settings.Ny = gridConfig.ny
+        settings.width = gridConfig.width
+        settings.height = gridConfig.height
+        calculateFrequency(cellsPerWavelength: settings.cellsPerWavelength, settings: &settings)
     }
     
     func stepFrame(commandBuffer: MTLCommandBuffer) {
@@ -350,5 +364,29 @@ final class Renderer: NSObject, MTKViewDelegate {
         
         commandBuffer.present(drawable)
         commandBuffer.commit()
+    }
+    
+    func gridSize(
+        for resolution: CGSize,
+        maxCells: Int = 500
+    ) -> (nx: Int, ny: Int) {
+        guard resolution.width > 0,
+              resolution.height > 0 else {
+            return (maxCells, maxCells)
+        }
+
+        let aspect = resolution.width / resolution.height
+
+        if aspect >= 1 {
+            let nx = maxCells
+            let ny = Int(round(Double(maxCells) / aspect))
+
+            return (nx, max(1, ny))
+        } else {
+            let ny = maxCells
+            let nx = Int(round(Double(maxCells) * aspect))
+
+            return (max(1, nx), ny)
+        }
     }
 }
