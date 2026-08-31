@@ -20,7 +20,7 @@ final class SimulationSettings {
     
     var Nx = 500
     var Ny = 500
-    var pmlThickness: Int = 20
+    var pmlThickness: Int = 40
     
     var width: Float = 2.0
     var height: Float = 2.0
@@ -198,6 +198,19 @@ final class Renderer: NSObject, MTKViewDelegate {
     
     private var stepSingle: Bool = false
     
+    var effectivePMLThickness: Int {
+        settings.reflectWalls ? 0 : settings.pmlThickness
+    }
+
+    func makeSimCount() -> (Int, Int) {
+        let pml = effectivePMLThickness
+
+        return (
+            settings.Nx + 2 * pml,
+            settings.Ny + 2 * pml
+        )
+    }
+    
     init(settings: SimulationSettings) {
         self.settings = settings
         
@@ -222,7 +235,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         self.gaussianHorizontal = GaussianBlurPass(device: device, library: library, inTexture: Reference(), isHorizontal: true)
         self.gaussianVertical = GaussianBlurPass(device: device, library: library, inTexture: Reference(), isHorizontal: false)
         
-        self.cells = MTLSyncBuffer(device: device, values: Renderer.makeCells(nx: settings.Nx, ny: settings.Ny))
+        self.cells = MTLSyncBuffer(device: device, values: Renderer.makeCells(nx: settings.Nx + 2 * settings.pmlThickness, ny: settings.Ny + 2 * settings.pmlThickness))
         
         self.ezUpdatePass = EzUpdatePass(device: device, library: library, cells: Reference())
         self.hUpdatePass = HFieldUpdatePass(device: device, library: library, cells: Reference())
@@ -255,8 +268,8 @@ final class Renderer: NSObject, MTKViewDelegate {
         
         uniforms.dt = calculateDt(dx: uniforms.dx, dy: uniforms.dy)
         
-        uniforms.Nx = UInt32(settings.Nx)
-        uniforms.Ny = UInt32(settings.Ny)
+        uniforms.Nx = UInt32(makeSimCount().0)
+        uniforms.Ny = UInt32(makeSimCount().1)
         
         uniforms.sourceFrequency = settings.sourceFrequency * 1e9 // Transform to Hz
         
@@ -270,11 +283,13 @@ final class Renderer: NSObject, MTKViewDelegate {
         uniforms.t = 0
         settings.paused = true
         
-        cells.assign(new: Renderer.makeCells(nx: settings.Nx, ny: settings.Ny))
+        cells.assign(new: Renderer.makeCells(nx: makeSimCount().0, ny: makeSimCount().1))
     }
     
     func checkRemakeCells() {
-        if cells.count != settings.Nx * settings.Ny {
+        let (nx, ny) = makeSimCount()
+
+        if cells.count != nx * ny {
             resetSimulation()
         }
     }

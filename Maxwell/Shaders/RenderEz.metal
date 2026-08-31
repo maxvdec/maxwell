@@ -25,8 +25,25 @@ kernel void renderEz(
         outTexture.get_height()
     );
     
-    uint x = min(uint(uv.x * uniforms.Nx), uniforms.Nx - 1);
-    uint y = min(uint(uv.y * uniforms.Ny), uniforms.Ny - 1);
+    uint visibleNx =
+        uniforms.Nx - 2 * uniforms.pmlThickness;
+
+    uint visibleNy =
+        uniforms.Ny - 2 * uniforms.pmlThickness;
+    
+    uint x =
+        uniforms.pmlThickness
+        + min(
+            uint(uv.x * visibleNx),
+            visibleNx - 1
+        );
+
+    uint y =
+        uniforms.pmlThickness
+        + min(
+            uint(uv.y * visibleNy),
+            visibleNy - 1
+        );
     
     uint index = y * uniforms.Nx + x;
     
