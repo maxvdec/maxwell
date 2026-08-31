@@ -22,7 +22,6 @@ kernel void updateEz(device GridCell* cells [[buffer(0)]], constant Uniforms& un
     uint index = gridIndex(id.x, id.y, uniforms.Nx);
     
     GridCell current = cells[index];
-    current.previousEz = current.Ez;
     
     uint indexLeft = gridIndex(id.x - 1, id.y, uniforms.Nx);
     GridCell left = cells[indexLeft];
@@ -44,76 +43,4 @@ kernel void updateEz(device GridCell* cells [[buffer(0)]], constant Uniforms& un
     }
     
     cells[index] = current;
-}
-
-kernel void absorbEzBoundary(
-    device GridCell* cells [[buffer(0)]],
-    constant Uniforms& uniforms [[buffer(1)]],
-    uint id [[thread_position_in_grid]]
-) {
-    const float c = 299792458.0f;
-
-    float kx =
-        (c * uniforms.dt - uniforms.dx)
-        / (c * uniforms.dt + uniforms.dx);
-
-    float ky =
-        (c * uniforms.dt - uniforms.dy)
-        / (c * uniforms.dt + uniforms.dy);
-
-    if (id < uniforms.Ny) {
-        uint y = id;
-
-        if (y > 0 && y < uniforms.Ny - 1) {
-            uint boundary = gridIndex(0, y, uniforms.Nx);
-            uint inside   = gridIndex(1, y, uniforms.Nx);
-
-            float oldBoundary = cells[boundary].previousEz;
-            float oldInside   = cells[inside].previousEz;
-            float newInside   = cells[inside].Ez;
-
-            cells[boundary].Ez =
-                oldInside
-                + kx * (newInside - oldBoundary);
-
-            boundary = gridIndex(uniforms.Nx - 1, y, uniforms.Nx);
-            inside   = gridIndex(uniforms.Nx - 2, y, uniforms.Nx);
-
-            oldBoundary = cells[boundary].previousEz;
-            oldInside   = cells[inside].previousEz;
-            newInside   = cells[inside].Ez;
-
-            cells[boundary].Ez =
-                oldInside
-                + kx * (newInside - oldBoundary);
-        }
-    }
-
-    if (id < uniforms.Nx) {
-        uint x = id;
-
-        if (x > 0 && x < uniforms.Nx - 1) {
-            uint boundary = gridIndex(x, 0, uniforms.Nx);
-            uint inside   = gridIndex(x, 1, uniforms.Nx);
-
-            float oldBoundary = cells[boundary].previousEz;
-            float oldInside   = cells[inside].previousEz;
-            float newInside   = cells[inside].Ez;
-
-            cells[boundary].Ez =
-                oldInside
-                + ky * (newInside - oldBoundary);
-
-            boundary = gridIndex(x, uniforms.Ny - 1, uniforms.Nx);
-            inside   = gridIndex(x, uniforms.Ny - 2, uniforms.Nx);
-
-            oldBoundary = cells[boundary].previousEz;
-            oldInside   = cells[inside].previousEz;
-            newInside   = cells[inside].Ez;
-
-            cells[boundary].Ez =
-                oldInside
-                + ky * (newInside - oldBoundary);
-        }
-    }
 }

@@ -12,7 +12,6 @@
 
 struct GridCell {
     float Ez;
-    float previousEz;
     simd_float2 H;
 };
 
