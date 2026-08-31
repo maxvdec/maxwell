@@ -201,6 +201,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     
     private var cells: MTLSyncBuffer<GridCell>
     private var sources: MTLSyncBuffer<ElectricSource>
+    private var sourceNames: [String] = ["<default>"]
     
     private var uniforms: Uniforms
     private var simTime: Float = 0.0
@@ -258,8 +259,9 @@ final class Renderer: NSObject, MTKViewDelegate {
         return Array(repeating: GridCell(Ez: 0, H: .zero), count: nx * ny)
     }
     
-    func addSource(_ source: ElectricSource) {
+    func addSource(_ source: ElectricSource, name: String) {
         self.sources.append(source)
+        self.sourceNames.append(name)
     }
     
     func updateRenderTexture(view: MTKView) {

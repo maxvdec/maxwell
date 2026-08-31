@@ -311,7 +311,7 @@ struct IntField: View {
                             isDragging = false
                         }
                 )
-
+            
             Spacer()
 
             TextField("", text: $text)
@@ -333,10 +333,12 @@ struct IntField: View {
 
                     value = number
                 }
-
-            Text(unit)
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 35, alignment: .leading)
+            
+            if !unit.isEmpty {
+                Text(unit)
+                    .foregroundStyle(.secondary)
+                    .frame(alignment: .leading)
+            }
         }
         .onAppear {
             text = format(value)
@@ -428,7 +430,7 @@ struct FloatField: View {
                             isDragging = false
                         }
                 )
-
+            
             Spacer()
 
             TextField("", text: $text)
@@ -451,9 +453,11 @@ struct FloatField: View {
                     value = number
                 }
 
-            Text(unit)
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 35, alignment: .leading)
+            if !unit.isEmpty {
+                Text(unit)
+                    .foregroundStyle(.secondary)
+                    .frame(alignment: .leading)
+            }
         }
         .onAppear {
             text = format(value)
