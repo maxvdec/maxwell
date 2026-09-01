@@ -78,6 +78,80 @@ struct Inspector: View {
         return InspectorSectionView(title: "Source Configuration") {
             Text("Position in Grid:")
                 .bold()
+            HStack() {
+                Spacer()
+                Button {
+                    sourceSetProperty(\.x, value: 1)
+                } label: {
+                    Image(systemName: "align.horizontal.left")
+                        .resizable()
+                        .foregroundStyle(.blue)
+                        .padding(3)
+                        .frame(width: 40, height: 40)
+                }
+                .cursor(.pointingHand)
+                .buttonStyle(.glass)
+                Button {
+                    sourceSetProperty(\.x, value: safelyCheckUInt(settings.Nx / 2))
+                } label: {
+                    Image(systemName: "align.horizontal.center")
+                        .resizable()
+                        .foregroundStyle(.blue)
+                        .padding(3)
+                        .frame(width: 40, height: 40)
+                }
+                .cursor(.pointingHand)
+                .buttonStyle(.glass)
+                Button {
+                    sourceSetProperty(\.x, value: safelyCheckUInt(settings.Nx - 1))
+                } label: {
+                    Image(systemName: "align.horizontal.right")
+                        .resizable()
+                        .foregroundStyle(.blue)
+                        .padding(3)
+                        .frame(width: 40, height: 40)
+                }
+                .cursor(.pointingHand)
+                .buttonStyle(.glass)
+                Spacer()
+            }
+            HStack() {
+                Spacer()
+                Button {
+                    sourceSetProperty(\.y, value: safelyCheckUInt(settings.Ny - 1))
+                } label: {
+                    Image(systemName: "align.vertical.top")
+                        .resizable()
+                        .foregroundStyle(.blue)
+                        .padding(3)
+                        .frame(width: 40, height: 40)
+                }
+                .cursor(.pointingHand)
+                .buttonStyle(.glass)
+                Button {
+                    sourceSetProperty(\.y, value: safelyCheckUInt(settings.Ny / 2))
+                } label: {
+                    Image(systemName: "align.vertical.center")
+                        .resizable()
+                        .foregroundStyle(.blue)
+                        .padding(3)
+                        .frame(width: 40, height: 40)
+                }
+                .cursor(.pointingHand)
+                .buttonStyle(.glass)
+                Button {
+                    sourceSetProperty(\.y, value: 1)
+                } label: {
+                    Image(systemName: "align.vertical.bottom")
+                        .resizable()
+                        .foregroundStyle(.blue)
+                        .padding(3)
+                        .frame(width: 40, height: 40)
+                }
+                .cursor(.pointingHand)
+                .buttonStyle(.glass)
+                Spacer()
+            }
             HStack {
                 UIntField("X:", value: sourceBinding(\.x, default: 0), unit: "")
                 Spacer()
