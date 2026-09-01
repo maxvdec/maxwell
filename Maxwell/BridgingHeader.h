@@ -44,6 +44,9 @@ struct Uniforms {
     unsigned int pmlThickness;
     
     unsigned int sourceCount;
+    
+    float sigmaMaxX;
+    float sigmaMaxY;
 };
 
 

@@ -74,13 +74,8 @@ kernel void updateEz(device GridCell* cells [[buffer(0)]],
     float depthX = pmlDepth(id.x, uniforms.Nx, uniforms.pmlThickness);
     float depthY = pmlDepth(id.y, uniforms.Ny, uniforms.pmlThickness);
     
-    float pmlPhysicalWidthX = float(uniforms.pmlThickness) * uniforms.dx;
-    float sigmaMaxX = calculateSigmaMax(pmlPhysicalWidthX);
-    float pmlPhysicalWidthY = float(uniforms.pmlThickness) * uniforms.dy;
-    float sigmaMaxY = calculateSigmaMax(pmlPhysicalWidthY);
-    
-    float sigmaX = sigmaMaxX * pow(depthX, 3);
-    float sigmaY = sigmaMaxY * pow(depthY, 3);
+    float sigmaX = uniforms.sigmaMaxX * pow(depthX, 3);
+    float sigmaY = uniforms.sigmaMaxY * pow(depthY, 3);
     
     float sigmaE = sigmaX + sigmaY;
     

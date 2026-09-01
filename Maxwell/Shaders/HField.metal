@@ -35,13 +35,8 @@ kernel void updateH(device GridCell* cells [[buffer(0)]], constant Uniforms& uni
     float depthX = pmlDepth(id.x, uniforms.Nx, uniforms.pmlThickness);
     float depthY = pmlDepth(id.y, uniforms.Ny, uniforms.pmlThickness);
     
-    float pmlPhysicalWidthX = float(uniforms.pmlThickness) * uniforms.dx;
-    float sigmaMaxX = calculateSigmaMax(pmlPhysicalWidthX);
-    float pmlPhysicalWidthY = float(uniforms.pmlThickness) * uniforms.dy;
-    float sigmaMaxY = calculateSigmaMax(pmlPhysicalWidthY);
-    
     float ezDiffY = (up.Ez - cell.Ez) / uniforms.dy;
-    float sigmaEY = sigmaMaxY * pow(depthY, 3);
+    float sigmaEY = uniforms.sigmaMaxY * pow(depthY, 3);
     float sigmaMY = sigmaEY * mu0 / epsilon0;
     
     float lossHx = sigmaMY * uniforms.dt / (2.0f * mu0);
@@ -51,7 +46,7 @@ kernel void updateH(device GridCell* cells [[buffer(0)]], constant Uniforms& uni
     cell.H.x = caHx * cell.H.x - cbHx * ezDiffY;
     
     float ezDiffX = (right.Ez - cell.Ez) / uniforms.dx;
-    float sigmaEX = sigmaMaxX * pow(depthX, 3);
+    float sigmaEX = uniforms.sigmaMaxX * pow(depthX, 3);
     float sigmaMX = sigmaEX * mu0 / epsilon0;
     
     float lossHy = sigmaMX * uniforms.dt / (2.0f * mu0);

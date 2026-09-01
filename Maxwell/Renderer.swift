@@ -18,8 +18,8 @@ import SwiftUI
 final class SimulationSettings {
     var paused = true
 
-    var Nx = 500
-    var Ny = 500
+    var Nx = 1000
+    var Ny = 1000
     var pmlThickness: Int = 40
 
     var width: Float = 2.0
@@ -33,7 +33,7 @@ final class SimulationSettings {
     var reflectWalls: Bool = false
     var stepsPerFrame: Int = 3
 
-    var blurAmount: Float = 15.0
+    var blurAmount: Float = 3.0
 }
 
 struct MetalView: NSViewRepresentable {
@@ -784,11 +784,22 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     func updateRenderTexture(view: MTKView) {
         ezRenderPass.texturePass.value = texturePass
-        texturePass.updateTexture(for: view.drawableSize)
+        texturePass.updateTexture(for: view.drawableSize / 4)
         gaussianHorizontal.inTexture.value = texturePass.texture
         gaussianHorizontal.updateTexture()
         gaussianVertical.inTexture.value = gaussianHorizontal.outTexture
         gaussianVertical.updateTexture()
+    }
+    
+    func calculateSigmaMaxXY() {
+        let pmlPhysicalWidthX = Float(uniforms.pmlThickness) * uniforms.dx
+        let sigmaMaxX = calculateSigmaMax(pmlPhysical: pmlPhysicalWidthX)
+        
+        let pmlPhysicalWidthY = Float(uniforms.pmlThickness) * uniforms.dy
+        let sigmaMaxY = calculateSigmaMax(pmlPhysical: pmlPhysicalWidthY)
+        
+        uniforms.sigmaMaxX = sigmaMaxX
+        uniforms.sigmaMaxY = sigmaMaxY
     }
 
     func updateUniforms(view: MTKView) {
@@ -807,6 +818,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 
         uniforms.Nx = UInt32(makeSimCount().0)
         uniforms.Ny = UInt32(makeSimCount().1)
+        
+        calculateSigmaMaxXY()
 
         uniforms.sourceFrequency = settings.sourceFrequency * 1e9 // Transform to Hz
 
@@ -1005,3 +1018,4 @@ final class Renderer: NSObject, MTKViewDelegate {
         return nil
     }
 }
+

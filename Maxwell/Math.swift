@@ -192,3 +192,10 @@ struct GridViewport {
         return CGPoint(x: x, y: y)
     }
 }
+
+func calculateSigmaMax(pmlPhysical: Float) -> Float {
+    let R: Float = 1e-6
+    let m: Float = 3
+    let eta0: Float = 377
+    return -1 * ((m + 1) * log(R) / 2 * eta0 * pmlPhysical)
+}
