@@ -23,7 +23,10 @@ struct ElectricSource {
     float amplitude;
     float phase;
     unsigned int type; // 0 -> line, 1 -> point, 2 -> beam
-    unsigned int form; // 0 -> sine, 1 -> pulse, 2 -> gaussian pulse
+    unsigned int form; // 0 -> sine, 1 -> pulse, 2 -> gaussian burst, 3 -> gaussian-modulated
+    
+    float duration; // nanoseconds
+    float gaussianWidth; // nanoseconds
 };
 
 struct Uniforms {

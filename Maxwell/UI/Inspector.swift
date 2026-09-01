@@ -133,9 +133,9 @@ struct Inspector: View {
 
         let name =
             editingName
-            .trimmingCharacters(
-                in: .whitespacesAndNewlines
-            )
+                .trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                )
 
         guard !name.isEmpty else {
             cancelNameEdit()
@@ -164,7 +164,7 @@ struct Inspector: View {
         return InspectorSectionView(title: "Source Configuration") {
             Text("Position in Grid:")
                 .bold()
-            HStack() {
+            HStack {
                 Spacer()
                 Button {
                     sourceSetProperty(\.x, value: 1)
@@ -204,7 +204,7 @@ struct Inspector: View {
                 .buttonStyle(.glass)
                 Spacer()
             }
-            HStack() {
+            HStack {
                 Spacer()
                 Button {
                     sourceSetProperty(\.y, value: 1)
@@ -250,9 +250,85 @@ struct Inspector: View {
                 UIntField("Y:", value: sourceBinding(\.y, default: 0), unit: "")
             }
             
-            FloatField("Frequency", value: sourceBinding(\.frequency, default: 0), unit: "GHz")
             FloatField("Amplitude", value: sourceBinding(\.amplitude, default: 0), unit: "V/m")
-            FloatField("Phase", value: sourceBinding(\.phase, default: 0), unit: "rad")
+            if getSourceForm() != .gaussianPulse {
+                FloatField("Frequency", value: sourceBinding(\.frequency, default: 0), unit: "GHz")
+                FloatField("Phase", value: sourceBinding(\.phase, default: 0), unit: "rad")
+            }
+            
+            if getSourceForm() == .pulse {
+                FloatField(
+                    "Duration",
+                    value: sourceBinding(
+                        \.duration,
+                        default: 0
+                    ),
+                    unit: "ns"
+                )
+
+                FloatField(
+                    "Duration in Cycles",
+                    value: sourceBinding(
+                        \.duration,
+                        default: 0,
+                        get: { durationNs in
+                            let frequencyGHz =
+                                sourceGetProperty(\.frequency) ?? 0
+
+                            return durationNs * frequencyGHz
+                        },
+                        set: { cycles in
+                            let frequencyGHz =
+                                sourceGetProperty(\.frequency) ?? 0
+
+                            guard frequencyGHz != 0 else {
+                                return 0
+                            }
+
+                            return cycles / frequencyGHz
+                        }
+                    ),
+                    unit: "cy."
+                )
+            }
+            
+            if getSourceForm() == .gaussianPulse || getSourceForm() == .gausianModulated {
+                FloatField(
+                    "Gaussian Width",
+                    value: sourceBinding(
+                        \.gaussianWidth,
+                        default: 0
+                    ),
+                    unit: "ns"
+                )
+            }
+            
+            if getSourceForm() == .gausianModulated {
+                FloatField(
+                    "Width in Cycles",
+                    value: sourceBinding(
+                        \.gaussianWidth,
+                        default: 0,
+                        get: { widthNs in
+                            let frequencyGHz =
+                                sourceGetProperty(\.frequency) ?? 0
+
+                            return widthNs * frequencyGHz
+                        },
+                        set: { cycles in
+                            let frequencyGHz =
+                                sourceGetProperty(\.frequency) ?? 0
+
+                            guard frequencyGHz != 0 else {
+                                return 0
+                            }
+
+                            return cycles / frequencyGHz
+                        }
+                    ),
+                    unit: "cy."
+                )
+            }
             
             IntField("Cells per wavelength", value: $desiredCellsPerWavelength, unit: "cpw")
             VStack(spacing: 3) {
@@ -281,8 +357,7 @@ struct Inspector: View {
             HStack {
                 Text("Source Type")
                 Spacer()
-                Picker("", selection: sourceBinding(\.type, default: 0))
-                {
+                Picker("", selection: sourceBinding(\.type, default: 0)) {
                     ForEach(SourceType.allCases, id: \.rawValue) { mode in
                         Text(mode.name)
                             .tag(mode.rawValue)
@@ -293,8 +368,7 @@ struct Inspector: View {
             HStack {
                 Text("Emission Form")
                 Spacer()
-                Picker("", selection: sourceBinding(\.form, default: 0))
-                {
+                Picker("", selection: sourceBinding(\.form, default: 0)) {
                     ForEach(SourceForm.allCases, id: \.rawValue) { mode in
                         Text(mode.name)
                             .tag(mode.rawValue)
@@ -321,11 +395,15 @@ struct Inspector: View {
         }
     }
     
+    private func getSourceForm() -> SourceForm {
+        return SourceForm(rawValue: renderer.getSource(i: getSourceIndex())!.form)!
+    }
+    
     private func getSourceIndex() -> Int {
         switch selection {
         case .none:
             return -1
-        case .source(let int):
+        case let .source(int):
             return int
         }
     }
@@ -357,7 +435,21 @@ struct Inspector: View {
         renderer.updateSource(i: i, source: oldSource)
     }
     
-    private func sourceBinding<T>(_ keyPath: WritableKeyPath<ElectricSource, T>, default defaultValue: T) -> Binding<T> {
+    private func sourceGetProperty<T>(_ keyPath: WritableKeyPath<ElectricSource, T>) -> T? {
+        guard case let .source(i) = selection else {
+            return nil
+        }
+        
+        var src = renderer.getSource(i: i)!
+        return src[keyPath: keyPath]
+    }
+    
+    private func sourceBinding<T>(
+        _ keyPath: WritableKeyPath<ElectricSource, T>,
+        default defaultValue: T,
+        get: @escaping (T) -> T = { $0 },
+        set: @escaping (T) -> T = { $0 }
+    ) -> Binding<T> {
         Binding(
             get: {
                 guard case let .source(i) = selection,
@@ -366,11 +458,14 @@ struct Inspector: View {
                     return defaultValue
                 }
 
-                return source[keyPath: keyPath]
+                return get(source[keyPath: keyPath])
             },
 
             set: { newValue in
-                sourceSetProperty(keyPath, value: newValue)
+                sourceSetProperty(
+                    keyPath,
+                    value: set(newValue)
+                )
             }
         )
     }

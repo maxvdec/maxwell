@@ -96,6 +96,7 @@ enum SourceForm: UInt32, CaseIterable, Hashable {
     case sine = 0
     case pulse = 1
     case gaussianPulse = 2
+    case gausianModulated = 3
 
     var name: String {
         switch self {
@@ -104,7 +105,9 @@ enum SourceForm: UInt32, CaseIterable, Hashable {
         case .pulse:
             "Simple Pulse"
         case .gaussianPulse:
-            "Gaussian Pulse"
+            "Pure Gaussian"
+        case .gausianModulated:
+            "Gaussian-modulated Sine"
         }
     }
 }

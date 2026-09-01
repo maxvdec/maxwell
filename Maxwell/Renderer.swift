@@ -832,7 +832,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     }
 
     func resetSimulation() {
-        uniforms.t = 0
+        simTime = 0.0
         settings.paused = true
 
         cells.assign(new: Renderer.makeCells(nx: makeSimCount().0, ny: makeSimCount().1))
@@ -861,7 +861,7 @@ final class Renderer: NSObject, MTKViewDelegate {
                                            frequency: calculateFrequency(cellsPerWavelength: 20.0, settings: settings),
                                            amplitude: 1.0,
                                            phase: 0.0,
-                                           type: SourceType.point.rawValue, form: SourceForm.sine.rawValue)]
+                                           type: SourceType.point.rawValue, form: SourceForm.sine.rawValue, duration: 0.0, gaussianWidth: 0.0)]
             self.sourceNames = ["Point Source 1"]
             print(sources[0])
             didCreateDefaultSource = true

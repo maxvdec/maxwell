@@ -13,7 +13,8 @@ using namespace metal;
 enum SourceForm : uint {
     FORM_SINE = 0,
     FORM_PULSE = 1,
-    FORM_GAUSSIAN = 2
+    FORM_GAUSSIAN = 2,
+    FORM_GAUSSIAN_MODULATED = 3
 };
 
 enum SourceType : uint {
@@ -36,6 +37,22 @@ float sourceContribution(uint2 id, constant ElectricSource* sources, constant Un
             if (source.type == TYPE_POINT && source.form == FORM_SINE) {
                 float frequencyHz = source.frequency * 1e9;
                 contribution += source.amplitude * sin(2.0 * M_PI_F * frequencyHz * uniforms.t + source.phase);
+            } else if (source.type == TYPE_POINT && source.form == FORM_PULSE) {
+                float frequencyHz = source.frequency * 1e9;
+                if (uniforms.t < (source.duration / 1e9)) {
+                    contribution += source.amplitude * sin(2.0 * M_PI_F * frequencyHz * uniforms.t + source.phase);
+                }
+            } else if (source.type == TYPE_POINT && source.form == FORM_GAUSSIAN) {
+                float sigma = (source.gaussianWidth / 1e9) / 2.35482;
+                float t0 = 4 * sigma;
+                contribution += source.amplitude * exp(-1 * (pow(uniforms.t - t0, 2) / (2 * pow(sigma, 2))));
+            } else if (source.type == TYPE_POINT && source.form == FORM_GAUSSIAN_MODULATED) {
+                float sigma = (source.gaussianWidth / 1e9) / 2.35482;
+                float t0 = 4 * sigma;
+                float gaussian = exp(-1 * (pow(uniforms.t - t0, 2) / (2 * pow(sigma, 2))));
+                float frequencyHz = source.frequency * 1e9;
+                float sine = sin(2 * M_PI_F * frequencyHz * (uniforms.t - 0) + source.phase);
+                contribution += source.amplitude * gaussian * sine;
             }
         }
     }
