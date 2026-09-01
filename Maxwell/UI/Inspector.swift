@@ -99,6 +99,7 @@ struct Inspector: View {
                         .padding(10)
                         .contentShape(Rectangle())
                 }
+                .cursor(.pointingHand)
                 .buttonStyle(.plain)
                 .glassEffect()
                 .focusable(false)
@@ -144,6 +145,7 @@ struct Inspector: View {
                     .padding(10)
                     .contentShape(Rectangle())
             }
+            .cursor(.pointingHand)
             .buttonStyle(.plain)
             .foregroundStyle(Color(red: 0.35, green: 0.0, blue: 0.0))
             .glassEffect(.regular.tint(.red))
@@ -222,6 +224,7 @@ struct Inspector: View {
                         .padding(10)
                         .contentShape(Rectangle())
                 }
+                .cursor(.pointingHand)
                 .buttonStyle(.plain)
                 .glassEffect()
                 .focusable(false)

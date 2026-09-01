@@ -65,10 +65,15 @@ struct ContentView: View {
         VStack {
             MetalView(renderer: renderer)
         }.overlay {
-            HStack {
-                Sidebar(currentTool: $currentTool)
+            VStack {
+                TopBar(renderer: $renderer, settings: $settings)
                 Spacer()
-                Inspector(settings: $settings, renderer: $renderer, selection: $selection)
+                HStack {
+                    Sidebar(currentTool: $currentTool)
+                    Spacer()
+                    Inspector(settings: $settings, renderer: $renderer, selection: $selection)
+                }
+                Spacer()
             }.padding()
         }
     }

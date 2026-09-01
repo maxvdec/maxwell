@@ -315,6 +315,8 @@ final class Renderer: NSObject, MTKViewDelegate {
         uniforms.reflectingWalls = settings.reflectWalls ? 1 : 0
         
         uniforms.pmlThickness = settings.reflectWalls ? 0 : UInt32(settings.pmlThickness)
+        
+        uniforms.sourceCount = UInt32(sources.count)
     }
     
     func resetSimulation() {

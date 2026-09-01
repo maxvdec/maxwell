@@ -67,6 +67,7 @@ struct Sidebar: View {
                     .frame(width: 40, height: 40)
             }
         }
+        .cursor(.pointingHand)
         .help(name)
         .buttonStyle(.plain)
         .focusable(false)
