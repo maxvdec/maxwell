@@ -119,7 +119,7 @@ struct Inspector: View {
                 {
                     ForEach(SourceType.allCases, id: \.rawValue) { mode in
                         Text(mode.name)
-                            .tag(mode)
+                            .tag(mode.rawValue)
                     }
                 }
             }
@@ -131,7 +131,7 @@ struct Inspector: View {
                 {
                     ForEach(SourceForm.allCases, id: \.rawValue) { mode in
                         Text(mode.name)
-                            .tag(mode)
+                            .tag(mode.rawValue)
                     }
                 }
             }

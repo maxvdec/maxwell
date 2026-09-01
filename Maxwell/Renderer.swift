@@ -109,9 +109,9 @@ class EzRenderPass: ComputePass {
 class EzUpdatePass: ComputePass {
     let pipeline: MTLComputePipelineState
     var cells: Reference<MTLSyncBuffer<GridCell>>
-    var sources: Reference<MTLSyncBuffer<ElectricSource>>
+    var sources: Reference<[ElectricSource]>
     
-    init(device: MTLDevice, library: MTLLibrary, cells: Reference<MTLSyncBuffer<GridCell>>, sources: Reference<MTLSyncBuffer<ElectricSource>>) {
+    init(device: MTLDevice, library: MTLLibrary, cells: Reference<MTLSyncBuffer<GridCell>>, sources: Reference<[ElectricSource]>) {
         self.cells = cells
         self.sources = sources
         let function = library.makeFunction(name: "updateEz")!
@@ -130,7 +130,9 @@ class EzUpdatePass: ComputePass {
         
         cells.unwrap().setAtEncoder(encoder, index: 0)
         encoder.setBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
-        sources.unwrap().setAtEncoder(encoder, index: 2)
+        sources.unwrap().withUnsafeBytes { bytes in
+            encoder.setBytes(bytes.baseAddress!, length: bytes.count, index: 2)
+        }
         
         let threadsPerGrid = MTLSize(width: Int(uniforms.Nx), height: Int(uniforms.Ny), depth: 1)
         
@@ -200,7 +202,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     private let hUpdatePass: HFieldUpdatePass
     
     private var cells: MTLSyncBuffer<GridCell>
-    private var sources: MTLSyncBuffer<ElectricSource>
+    private var sources: [ElectricSource]
     private var sourceNames: [String] = ["<default>"]
     
     private var uniforms: Uniforms
@@ -254,7 +256,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         self.ezUpdatePass = EzUpdatePass(device: device, library: library, cells: Reference(), sources: Reference())
         self.hUpdatePass = HFieldUpdatePass(device: device, library: library, cells: Reference())
         self.uniforms = Uniforms()
-        self.sources = MTLSyncBuffer(device: device, values: [ElectricSource()])
+        self.sources = [ElectricSource()]
     }
     
     static func makeCells(nx: Int, ny: Int) -> [GridCell] {
@@ -267,7 +269,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     }
     
     func updateSource(i: Int, source: ElectricSource) {
-        sources.set(source, at: i)
+        sources[i] = source
         sourcesRevision += 1
     }
     
@@ -280,7 +282,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     }
     
     func getSource(i : Int) -> ElectricSource? {
-        return self.sources.getArray()[i]
+        return self.sources[i]
     }
     
     func updateRenderTexture(view: MTKView) {
