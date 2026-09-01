@@ -14,6 +14,24 @@ struct TopBar: View {
     var body: some View {
         HStack(spacing: 4) {
             Button {
+                renderer.resetSimulation()
+            } label: {
+                Image(systemName: "arrow.trianglehead.counterclockwise")
+                    .resizable()
+                    .bold()
+                    .scaledToFit()
+                    .frame(
+                        width: 25,
+                        height: 25
+                    )
+                    .frame(width: 40, height: 40)
+            }
+            .keyboardShortcut(.init(.leftArrow, modifiers: .command))
+            .cursor(.pointingHand)
+            .help("Reset the simulation (Cmd + Left)")
+            .buttonStyle(.plain)
+            .focusable(false)
+            Button {
                 settings.paused.toggle()
             } label: {
                 if settings.paused {
@@ -36,14 +54,16 @@ struct TopBar: View {
                         .frame(width: 40, height: 40)
                 }
             }
+           
             .cursor(.pointingHand)
-            .help("Pause or play the simulation")
+            .help("Pause or play the simulation (Space)")
             .buttonStyle(.plain)
             .focusable(false)
+            
             Button {
-                renderer.resetSimulation()
+                renderer.stepOneFrame()
             } label: {
-                Image(systemName: "arrow.trianglehead.counterclockwise")
+                Image(systemName: "arrow.right")
                     .resizable()
                     .bold()
                     .scaledToFit()
@@ -53,8 +73,9 @@ struct TopBar: View {
                     )
                     .frame(width: 40, height: 40)
             }
+            .keyboardShortcut(.init(.rightArrow, modifiers: .command))
             .cursor(.pointingHand)
-            .help("Pause or play the simulation")
+            .help("Step one frame (Cmd + Right)")
             .buttonStyle(.plain)
             .focusable(false)
         }
@@ -64,6 +85,10 @@ struct TopBar: View {
             RoundedRectangle(cornerRadius: 26)
                 .foregroundStyle(.background)
                 .glassEffect()
+        }
+        .onKeyPress(.space) {
+            settings.paused.toggle()
+            return .handled
         }
     }
 }

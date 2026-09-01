@@ -41,10 +41,6 @@ struct MyApp: App {
                 }
                 .preferredColorScheme(.dark)
         }
-        .defaultSize(
-            width: windowWidth,
-            height: windowHeight
-        )
     }
 }
 
@@ -77,6 +73,10 @@ struct ContentView: View {
                 renderer: renderer,
                 editor: editor
             )
+        }
+        .onKeyPress(.space) {
+            settings.paused.toggle()
+            return .handled
         }
         .overlay {
             VStack {

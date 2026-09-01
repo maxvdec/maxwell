@@ -655,6 +655,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     var drawableSize: CGSize = .zero
 
     var editor: EditorState?
+    
+    private var didCreateDefaultSource = false
 
     var effectivePMLThickness: Int {
         settings.reflectWalls ? 0 : settings.pmlThickness
@@ -700,6 +702,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         self.uniforms = Uniforms()
 
         self.sourceOverlayRenderer = SourceOverlayRenderer(device: device, library: library)
+       
     }
 
     static func makeCells(nx: Int, ny: Int) -> [GridCell] {
@@ -832,13 +835,24 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
         updateRenderTexture(view: view)
-        drawableSize = view.drawableSize
+        drawableSize = size
 
-        let gridConfig = gridConfiguration(for: drawableSize, maxCells: settings.Nx, physicalWidth: settings.width)
+        let gridConfig = gridConfiguration(for: size, maxCells: settings.Nx, physicalWidth: settings.width)
         settings.Nx = gridConfig.nx
         settings.Ny = gridConfig.ny
         settings.width = gridConfig.width
         settings.height = gridConfig.height
+        
+        if !didCreateDefaultSource {
+            self.sources = [ElectricSource(x: safelyCheckUInt(settings.Nx / 2), y: safelyCheckUInt(settings.Ny / 2),
+                                           frequency: calculateFrequency(cellsPerWavelength: 20.0, settings: settings),
+                                           amplitude: 1.0,
+                                           phase: 0.0,
+                                           type: SourceType.point.rawValue, form: SourceForm.sine.rawValue)]
+            self.sourceNames = ["Point Source 1"]
+            print(sources[0])
+            didCreateDefaultSource = true
+        }
     }
 
     func stepFrame(commandBuffer: MTLCommandBuffer) {
