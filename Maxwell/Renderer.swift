@@ -183,7 +183,7 @@ class HFieldUpdatePass: ComputePass {
     }
 }
 
-
+@Observable
 final class Renderer: NSObject, MTKViewDelegate {
     let device: MTLDevice
     
@@ -207,6 +207,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     private var simTime: Float = 0.0
     
     private var stepSingle: Bool = false
+    
+    var sourcesRevision = 0
     
     var drawableSize: CGSize = .zero
     
@@ -262,6 +264,19 @@ final class Renderer: NSObject, MTKViewDelegate {
     func addSource(_ source: ElectricSource, name: String) {
         self.sources.append(source)
         self.sourceNames.append(name)
+    }
+    
+    func updateSource(i: Int, source: ElectricSource) {
+        sources.set(source, at: i)
+        sourcesRevision += 1
+    }
+    
+    func getNameForSource(i: Int) -> String? {
+        return self.sourceNames[i]
+    }
+    
+    func getSource(i : Int) -> ElectricSource? {
+        return self.sources.getArray()[i]
     }
     
     func updateRenderTexture(view: MTKView) {
@@ -322,7 +337,6 @@ final class Renderer: NSObject, MTKViewDelegate {
         settings.Ny = gridConfig.ny
         settings.width = gridConfig.width
         settings.height = gridConfig.height
-        calculateFrequency(cellsPerWavelength: settings.cellsPerWavelength, settings: &settings)
     }
     
     func stepFrame(commandBuffer: MTLCommandBuffer) {

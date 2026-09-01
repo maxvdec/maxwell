@@ -48,117 +48,11 @@ struct MyApp: App {
     }
 }
 
-struct ParametersView: View {
-    @Binding var settings: SimulationSettings
-    @Binding var renderer: Renderer
-    
-    var body: some View {
-        HStack {
-            Spacer()
-            RoundedRectangle(cornerRadius: 16)
-                .frame(maxWidth: 300, maxHeight: .infinity)
-                .foregroundStyle(.white)
-                .overlay {
-                    HStack {
-                        parameterList
-                            .padding()
-                        Spacer()
-                    }
-                }
-                .padding()
-        }.padding()
-    }
-    
-    var parameterList: some View {
-        ScrollView {
-            VStack {
-                Text("Parameters")
-                    .font(.largeTitle)
-                    .bold()
-                
-                IntField("Nx", value: $settings.Nx, unit: "")
-                IntField("Ny", value: $settings.Ny, unit: "")
-                Button {
-                    let gridConfig = gridConfiguration(for: renderer.drawableSize, maxCells: settings.Nx, physicalWidth: settings.width)
-                    settings.Nx = gridConfig.nx
-                    settings.Ny = gridConfig.ny
-                    settings.width = gridConfig.width
-                    settings.height = gridConfig.height
-                } label: {
-                    Text("Match grid (max is Nx, width is Width)")
-                }
-                IntField("PML Thickness", value: $settings.pmlThickness, unit: "")
-                
-                
-                FloatField("Width", value: $settings.width, unit: "m")
-                FloatField("Height", value: $settings.height, unit: "m")
-                
-                IntField("Steps per frame", value: $settings.stepsPerFrame, unit: "")
-                
-                Toggle(isOn: $settings.reflectWalls) {
-                    Text("Walls Reflect")
-                }
-                
-                Divider()
-                
-                FloatField("Source Frequency", value: $settings.sourceFrequency, unit: "GHz")
-                FloatField("Cells per wavelength", value: $settings.cellsPerWavelength, unit: "")
-                Button {
-                    calculateFrequency(cellsPerWavelength: settings.cellsPerWavelength, settings: &settings)
-                } label: {
-                    Text("Calculate frequency")
-                }
-                
-                Divider()
-                
-                FloatField("Visualization Scale", value: $settings.visualizationScale, unit: "")
-                FloatField("Blur Amount", value: $settings.blurAmount, unit: "")
-                
-                Spacer()
-                
-                HStack {
-                    Button {
-                        settings.paused.toggle()
-                    } label: {
-                        if settings.paused {
-                            Image(systemName: "play")
-                        } else {
-                            Image(systemName: "pause")
-                        }
-                    }
-                    Button {
-                        renderer.resetSimulation()
-                    } label: {
-                        Image(systemName: "arrow.trianglehead.counterclockwise")
-                    }
-                }
-            }
-        }
-        .onKeyPress { key in
-            if !key.modifiers.contains(.command) {
-                return .ignored
-            }
-            
-            if key.key == .rightArrow {
-                renderer.stepOneFrame()
-                return .handled
-            } else if key.key == .leftArrow {
-                renderer.resetSimulation()
-                return .handled
-            }
-            
-            return .ignored
-        }
-        .onKeyPress(.space) {
-            settings.paused.toggle()
-            return .handled
-        }
-    }
-}
-
 struct ContentView: View {
     @State private var renderer: Renderer
     @State private var settings: SimulationSettings
+    @State private var selection: InspectorSelection = .source(0)
+    @State private var currentTool: Tool = .pointer
     
     init() {
         let settings = SimulationSettings()
@@ -171,7 +65,11 @@ struct ContentView: View {
         VStack {
             MetalView(renderer: renderer)
         }.overlay {
-            ParametersView(settings: $settings, renderer: $renderer)
+            HStack {
+                Sidebar(currentTool: $currentTool)
+                Spacer()
+                Inspector(settings: $settings, renderer: $renderer, selection: $selection)
+            }.padding()
         }
     }
 }

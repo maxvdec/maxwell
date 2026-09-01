@@ -27,12 +27,20 @@ struct InspectorSectionView<Content: View>: View {
     }
 }
 
+enum InspectorSelection: Equatable {
+    case none
+    case source(Int)
+}
+
 struct Inspector: View {
-    @State var elementName: String = "World"
+    @State var elementName: String = "<none>"
     @State private var width: CGFloat = 300
     @Binding var settings: SimulationSettings
     @Binding var renderer: Renderer
+    @Binding var selection: InspectorSelection
     
+    @State private var desiredCellsPerWavelength: Int = 20
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading) {
@@ -40,13 +48,15 @@ struct Inspector: View {
                     .font(.title)
                     .bold()
                 Divider()
+                if case .source = selection {
+                    sourceSection
+                }
                 gridSection
                 environmentSection
                 visualizationSection
             }
             .frame(maxWidth: 300)
             .padding(30)
-            
         }
         .background {
             Color(nsColor: .windowBackgroundColor).opacity(0.4)
@@ -55,6 +65,118 @@ struct Inspector: View {
                     in: .rect(cornerRadius: 40)
                 )
         }
+        .onAppear {
+            updateElementName()
+        }
+        .onChange(of: selection) {
+            updateElementName()
+        }
+    }
+    
+    var sourceSection: some View {
+        let _ = renderer.sourcesRevision
+        return InspectorSectionView(title: "Source Configuration") {
+            Text("Position in Grid:")
+                .bold()
+            HStack {
+                UIntField("X:", value: sourceBinding(\.x, default: 0), unit: "")
+                Spacer()
+                UIntField("Y:", value: sourceBinding(\.y, default: 0), unit: "")
+            }
+            
+            FloatField("Frequency", value: sourceBinding(\.frequency, default: 0), unit: "GHz")
+            FloatField("Amplitude", value: sourceBinding(\.amplitude, default: 0), unit: "V/m")
+            FloatField("Phase", value: sourceBinding(\.phase, default: 0), unit: "rad")
+            
+            IntField("Cells per wavelength", value: $desiredCellsPerWavelength, unit: "cpw")
+            VStack(spacing: 3) {
+                Button {
+                    let freq = calculateFrequency(cellsPerWavelength: Float(desiredCellsPerWavelength), settings: settings)
+                    sourceSetProperty(\.frequency, value: freq)
+                } label: {
+                    Text("Match Frequency to Dimensions")
+                        .frame(maxWidth: .infinity)
+                        .padding(10)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .glassEffect()
+                .focusable(false)
+                HStack {
+                    Spacer()
+                    Text("Matching calculates the frequency based on the cells per wavelength parameter.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+            }
+            
+            HStack {
+                Text("Source Type")
+                Spacer()
+                Picker("", selection: sourceBinding(\.type, default: 0))
+                {
+                    ForEach(SourceType.allCases, id: \.rawValue) { mode in
+                        Text(mode.name)
+                            .tag(mode)
+                    }
+                }
+            }
+            
+            HStack {
+                Text("Emission Form")
+                Spacer()
+                Picker("", selection: sourceBinding(\.form, default: 0))
+                {
+                    ForEach(SourceForm.allCases, id: \.rawValue) { mode in
+                        Text(mode.name)
+                            .tag(mode)
+                    }
+                }
+            }
+            
+            Divider()
+        }
+    }
+    
+    private func updateElementName() {
+        switch selection {
+        case .none:
+            elementName = "World"
+
+        case let .source(i):
+            let name = renderer.getNameForSource(i: i)
+            elementName = name ?? "Source \(i)"
+        }
+    }
+    
+    private func sourceSetProperty<T>(_ keyPath: WritableKeyPath<ElectricSource, T>, value: T) {
+        guard case let .source(i) = selection else {
+            return
+        }
+        
+        var oldSource = renderer.getSource(i: i)!
+        oldSource[keyPath: keyPath] = value
+
+        renderer.updateSource(i: i, source: oldSource)
+    }
+    
+    private func sourceBinding<T>(_ keyPath: WritableKeyPath<ElectricSource, T>, default defaultValue: T) -> Binding<T> {
+        Binding(
+            get: {
+                guard case let .source(i) = selection,
+                      let source = renderer.getSource(i: i)
+                else {
+                    return defaultValue
+                }
+
+                return source[keyPath: keyPath]
+            },
+
+            set: { newValue in
+                sourceSetProperty(keyPath, value: newValue)
+            }
+        )
     }
     
     var gridSection: some View {
@@ -64,17 +186,31 @@ struct Inspector: View {
                 Spacer()
                 IntField("Ny", value: $settings.Ny, unit: "")
             }
-            Button {
-                
-            } label: {
-                Text("Match Grid to Screen")
-                    .frame(maxWidth: .infinity)
-                    .padding(10)
-                    .contentShape(Rectangle())
+            VStack(spacing: 3) {
+                Button {
+                    let gridConfig = gridConfiguration(for: renderer.drawableSize, maxCells: settings.Nx, physicalWidth: settings.width)
+                    settings.Nx = gridConfig.nx
+                    settings.Ny = gridConfig.ny
+                    settings.width = gridConfig.width
+                    settings.height = gridConfig.height
+                } label: {
+                    Text("Match Grid to Screen")
+                        .frame(maxWidth: .infinity)
+                        .padding(10)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .glassEffect()
+                .focusable(false)
+                HStack {
+                    Spacer()
+                    Text("Matching uses Nx as the maximum number of cells and width as the physical width from which all other properties will be calculated.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
             }
-            .buttonStyle(.plain)
-            .glassEffect()
-            .focusable(false)
+            
             HStack {
                 FloatField("W (m):", value: $settings.width, unit: "")
                 Spacer()
@@ -108,7 +244,7 @@ struct Inspector: View {
 }
 
 #Preview {
-    Inspector()
+    Inspector(settings: .constant(.init()), renderer: .constant(.init(settings: .init())), selection: .constant(.source(0)))
         .padding()
         .preferredColorScheme(.dark)
 }

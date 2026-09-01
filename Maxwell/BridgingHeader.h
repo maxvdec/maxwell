@@ -16,7 +16,9 @@ struct GridCell {
 };
 
 struct ElectricSource {
-    simd_uint2 position;
+    unsigned int x;
+    unsigned int y;
+    
     float frequency;
     float amplitude;
     float phase;

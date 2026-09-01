@@ -359,6 +359,138 @@ struct IntField: View {
     }
 }
 
+func safelyCheckUInt(_ value: Int) -> UInt32 {
+    if value < 0 {
+        return 0
+    } else {
+        return UInt32(value)
+    }
+}
+
+struct UIntField: View {
+    @Binding var value: UInt32
+
+    let title: String
+    let unit: String
+    let isZeroPermitted: Bool
+    let dragSensitivity: Float
+
+    @State private var text: String = ""
+    @State private var dragStartValue: UInt32?
+    @State private var isDragging = false
+
+    init(
+        _ title: String,
+        value: Binding<UInt32>,
+        unit: String,
+        isZeroPermitted: Bool = false,
+        dragSensitivity: Float = 0.1
+    ) {
+        self.title = title
+        self._value = value
+        self.unit = unit
+        self.isZeroPermitted = isZeroPermitted
+        self.dragSensitivity = dragSensitivity
+    }
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .contentShape(Rectangle())
+                .onHover { hovering in
+                    if hovering {
+                        NSCursor.resizeLeftRight.set()
+                    } else {
+                        NSCursor.arrow.set()
+                    }
+                }
+                .gesture(
+                    DragGesture(minimumDistance: 1)
+                        .onChanged { gesture in
+                            if dragStartValue == nil {
+                                dragStartValue = value
+                                isDragging = true
+                            }
+
+                            guard let startValue = dragStartValue else {
+                                return
+                            }
+
+                            var sensitivity = dragSensitivity
+
+                            if NSEvent.modifierFlags.contains(.shift) {
+                                sensitivity *= 0.1
+                            }
+
+                            var newValue =
+                                startValue
+                                + safelyCheckUInt(Int(
+                                    round(
+                                        Float(gesture.translation.width)
+                                            * sensitivity
+                                    )
+                                ))
+
+                            if !isZeroPermitted && newValue == 0 {
+                                newValue = gesture.translation.width >= 0 ? 1 : 0
+                            }
+
+                            value = newValue
+                            text = format(Int(newValue))
+                        }
+                        .onEnded { _ in
+                            dragStartValue = nil
+                            isDragging = false
+                        }
+                )
+            
+            Spacer()
+
+            TextField("", text: $text)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 90)
+                .textFieldStyle(.roundedBorder)
+                .onChange(of: text) { _, newValue in
+                    guard !isDragging else {
+                        return
+                    }
+
+                    guard let number = Int(newValue) else {
+                        return
+                    }
+
+                    if number == 0 && !isZeroPermitted {
+                        return
+                    }
+
+                    value = safelyCheckUInt(number)
+                }
+            
+            if !unit.isEmpty {
+                Text(unit)
+                    .foregroundStyle(.secondary)
+                    .frame(alignment: .leading)
+            }
+        }
+        .onAppear {
+            text = format(Int(value))
+        }
+        .onChange(of: value) { _, newValue in
+            guard !isDragging else {
+                return
+            }
+
+            if safelyCheckUInt(Int(text) ?? -1) != newValue {
+                text = format(Int(newValue))
+            }
+        }
+    }
+
+    private func format(_ value: Int) -> String {
+        String(value)
+    }
+}
+
 struct FloatField: View {
     @Binding var value: Float
 
@@ -573,6 +705,14 @@ class MTLSyncBuffer<T> {
     
     func setAtVertexBuffer(_ encoder: MTLRenderCommandEncoder, index: Int) {
         encoder.setVertexBuffer(buffer, offset: 0, index: index)
+    }
+    
+    func set(_ elem: T, at: Int) {
+        if at > array.count {
+            fatalError("Tried to access past the bounds of the array")
+        }
+        array[at] = elem
+        syncElementToBuffer(at)
     }
     
     @available(*, deprecated, message: "Try not to access internal arrays or buffers")

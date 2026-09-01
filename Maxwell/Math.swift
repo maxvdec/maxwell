@@ -16,11 +16,11 @@ func calculateDt(dx: Float, dy: Float) -> Float {
     return courant * dtMax;
 }
 
-func calculateFrequency(cellsPerWavelength: Float, settings: inout SimulationSettings) {
+func calculateFrequency(cellsPerWavelength: Float, settings: SimulationSettings) -> Float {
     let dx = settings.width / Float(settings.Nx)
     let wavelength = dx * cellsPerWavelength
     let frequency = c / wavelength
-    settings.sourceFrequency = (frequency / 1e9)
+    return (frequency / 1e9)
 }
 
 struct GridConfiguration {
@@ -76,4 +76,35 @@ func gridConfiguration(
         width: physicalWidth,
         height: height
     )
+}
+
+enum SourceType: UInt32, CaseIterable, Hashable {
+    case line = 0
+    case point = 1
+    case beam = 2
+    
+    var name: String {
+        switch self {
+        case .line: "Line"
+        case .point: "Point"
+        case .beam: "Beam"
+        }
+    }
+}
+
+enum SourceForm: UInt32, CaseIterable, Hashable {
+    case sine = 0
+    case pulse = 1
+    case gaussianPulse = 2
+    
+    var name: String {
+        switch self {
+        case .sine:
+            "Sinusoidal wave"
+        case .pulse:
+            "Simple Pulse"
+        case .gaussianPulse:
+            "Gaussian Pulse"
+        }
+    }
 }

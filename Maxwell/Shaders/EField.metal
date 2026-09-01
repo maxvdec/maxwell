@@ -27,10 +27,11 @@ float sourceContribution(uint2 id, constant ElectricSource* sources, constant Un
     
     for (uint i = 0; i < uniforms.sourceCount; i++) {
         ElectricSource source = sources[i];
-        if (source.position.x == id.x && source.position.y == id.y) {
+        if (source.x == id.x && source.y == id.y) {
             // Just handle point, sine functions
             if (source.type == TYPE_POINT && source.form == FORM_SINE) {
-                contribution += source.amplitude * sin(2.0 * M_PI_F * source.frequency * uniforms.t + source.phase);
+                float frequencyHz = source.frequency * 1e9;
+                contribution += source.amplitude * sin(2.0 * M_PI_F * frequencyHz * uniforms.t + source.phase);
             }
         }
     }
