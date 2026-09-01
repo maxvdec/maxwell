@@ -27,7 +27,11 @@ float sourceContribution(uint2 id, constant ElectricSource* sources, constant Un
     
     for (uint i = 0; i < uniforms.sourceCount; i++) {
         ElectricSource source = sources[i];
-        if (source.x == id.x && source.y == id.y) {
+        
+        uint simX = source.x + uniforms.pmlThickness;
+        uint simY = source.y + uniforms.pmlThickness;
+        
+        if (id.x == simX && id.y == simY) {
             // Just handle point, sine functions
             if (source.type == TYPE_POINT && source.form == FORM_SINE) {
                 float frequencyHz = source.frequency * 1e9;

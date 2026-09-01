@@ -422,17 +422,20 @@ struct UIntField: View {
                                 sensitivity *= 0.1
                             }
 
-                            var newValue =
-                                startValue
-                                + safelyCheckUInt(Int(
-                                    round(
-                                        Float(gesture.translation.width)
-                                            * sensitivity
-                                    )
-                                ))
+                            let delta = Int(
+                                round(
+                                    Float(gesture.translation.width) * sensitivity
+                                )
+                            )
+
+                            var signedValue = Int(startValue) + delta
+
+                            signedValue = max(signedValue, 0)
+
+                            var newValue = UInt32(signedValue)
 
                             if !isZeroPermitted && newValue == 0 {
-                                newValue = gesture.translation.width >= 0 ? 1 : 0
+                                newValue = 1
                             }
 
                             value = newValue

@@ -89,6 +89,7 @@ struct Inspector: View {
                         .padding(3)
                         .frame(width: 40, height: 40)
                 }
+                .focusable(false)
                 .cursor(.pointingHand)
                 .buttonStyle(.glass)
                 Button {
@@ -100,6 +101,7 @@ struct Inspector: View {
                         .padding(3)
                         .frame(width: 40, height: 40)
                 }
+                .focusable(false)
                 .cursor(.pointingHand)
                 .buttonStyle(.glass)
                 Button {
@@ -111,6 +113,7 @@ struct Inspector: View {
                         .padding(3)
                         .frame(width: 40, height: 40)
                 }
+                .focusable(false)
                 .cursor(.pointingHand)
                 .buttonStyle(.glass)
                 Spacer()
@@ -126,6 +129,7 @@ struct Inspector: View {
                         .padding(3)
                         .frame(width: 40, height: 40)
                 }
+                .focusable(false)
                 .cursor(.pointingHand)
                 .buttonStyle(.glass)
                 Button {
@@ -137,6 +141,7 @@ struct Inspector: View {
                         .padding(3)
                         .frame(width: 40, height: 40)
                 }
+                .focusable(false)
                 .cursor(.pointingHand)
                 .buttonStyle(.glass)
                 Button {
@@ -148,6 +153,7 @@ struct Inspector: View {
                         .padding(3)
                         .frame(width: 40, height: 40)
                 }
+                .focusable(false)
                 .cursor(.pointingHand)
                 .buttonStyle(.glass)
                 Spacer()
