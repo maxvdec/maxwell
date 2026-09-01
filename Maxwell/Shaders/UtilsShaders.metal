@@ -168,15 +168,21 @@ vertex ImageOverlayOut imageOverlayVertex(
 
 fragment float4 imageOverlayFragment(
     ImageOverlayOut in [[stage_in]],
-    texture2d<float> sourceTexture [[texture(0)]]
+    texture2d<float> sourceTexture [[texture(0)]],
+    constant float& opacity [[buffer(0)]]
 ) {
     constexpr sampler sourceSampler(
         min_filter::linear,
         mag_filter::linear
     );
 
-    return sourceTexture.sample(
-        sourceSampler,
-        in.uv
-    );
+    float4 color =
+        sourceTexture.sample(
+            sourceSampler,
+            in.uv
+        );
+
+    color.a *= opacity;
+
+    return color;
 }

@@ -7,21 +7,35 @@
 
 import SwiftUI
 
-enum Tool {
-    case pointer
-    case placePoint
-    case placeLine
-    case placeBeam
-}
-
 struct Sidebar: View {
     @Binding var currentTool: Tool
+
     var body: some View {
         VStack(spacing: 4) {
-            makeToolbarButton(tool: .pointer, image: "pointer.arrow", name: "Select", overrwriteWidth: 15)
-            makeToolbarButton(tool: .placePoint, image: "target", name: "Place a point source", )
-            makeToolbarButton(tool: .placeLine, image: "line.diagonal.trianglehead.up.right", name: "Place a line source")
-            makeToolbarButton(tool: .placeBeam, image: "angle", name: "Place a beam source")
+            makeToolbarButton(
+                tool: .pointer,
+                image: "pointer.arrow",
+                name: "Select",
+                overrwriteWidth: 15
+            )
+
+            makeToolbarButton(
+                tool: .placePoint,
+                image: "target",
+                name: "Place a point source"
+            )
+
+            makeToolbarButton(
+                tool: .placeLine,
+                image: "line.diagonal.trianglehead.up.right",
+                name: "Place a line source"
+            )
+
+            makeToolbarButton(
+                tool: .placeBeam,
+                image: "angle",
+                name: "Place a beam source"
+            )
         }
         .padding(.vertical, 10)
         .frame(width: 50)
@@ -31,7 +45,7 @@ struct Sidebar: View {
                 .glassEffect()
         }
     }
-    
+
     func makeToolbarButton(
         tool: Tool,
         image: String,

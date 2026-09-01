@@ -5,16 +5,16 @@
 //  Created by Max Van den Eynde on 30/08/2026.
 //
 
+import Foundation
 import Metal
 import MetalKit
-import Foundation
 import SwiftUI
 
 func createRenderPipeline(vertex: String, fragment: String, device: MTLDevice) throws -> MTLRenderPipelineState {
     guard let library = device.makeDefaultLibrary() else {
         fatalError("Could not load Metal Library")
     }
-    
+
     let vertexFunction = library.makeFunction(name: vertex)!
     let fragmentFunction = library.makeFunction(name: fragment)!
 
@@ -93,10 +93,10 @@ class TextureRenderPass: RenderPass {
             device: device
         )
     }
-    
+
     func updateTexture(for size: CGSize) {
         if Int(size.width) != texture.width || Int(size.height) != texture.height {
-            self.texture = createRenderTexture(device: device, width: Int(size.width), height: Int(size.height))
+            texture = createRenderTexture(device: device, width: Int(size.width), height: Int(size.height))
         }
     }
 
@@ -142,14 +142,65 @@ class ImageOverlayRenderPass: RenderPass {
             device: device
         )
     }
-    
-    func dispatchWithVerticesAndTexture(_ commandBuffer: any MTLCommandBuffer,
-                                        descriptor: MTLRenderPassDescriptor,
-                                        uniforms: inout Uniforms, tex: MTLTexture, vertices: [SimpleOverlayVertex], encoder: MTLRenderCommandEncoder) {
-        self.texture = tex
+
+    func dispatchWithVerticesAndTexture(
+        _ commandBuffer: any MTLCommandBuffer,
+        descriptor: MTLRenderPassDescriptor,
+        uniforms: inout Uniforms,
+        tex: MTLTexture,
+        vertices: [SimpleOverlayVertex],
+        opacity: Float = 1.0,
+        encoder: MTLRenderCommandEncoder
+    ) {
+        texture = tex
         self.vertices = vertices
-        
-        encode(commandBuffer, descriptor: descriptor, uniforms: &uniforms, renderEncoder: encoder)
+
+        encode(
+            commandBuffer,
+            descriptor: descriptor,
+            uniforms: &uniforms,
+            opacity: opacity,
+            renderEncoder: encoder
+        )
+    }
+
+    private func encode(
+        _ commandBuffer: any MTLCommandBuffer,
+        descriptor: MTLRenderPassDescriptor,
+        uniforms: inout Uniforms,
+        opacity: Float,
+        renderEncoder encoder: MTLRenderCommandEncoder
+    ) {
+        encoder.setRenderPipelineState(
+            renderPipeline
+        )
+
+        encoder.setFragmentTexture(
+            texture,
+            index: 0
+        )
+
+        var opacity = opacity
+
+        encoder.setFragmentBytes(
+            &opacity,
+            length: MemoryLayout<Float>.stride,
+            index: 0
+        )
+
+        encoder.setVertexBytes(
+            vertices,
+            length:
+            MemoryLayout<SimpleOverlayVertex>.stride
+                * vertices.count,
+            index: 0
+        )
+
+        encoder.drawPrimitives(
+            type: .triangle,
+            vertexStart: 0,
+            vertexCount: 6
+        )
     }
 
     func encode(
@@ -158,16 +209,7 @@ class ImageOverlayRenderPass: RenderPass {
         uniforms: inout Uniforms,
         renderEncoder encoder: MTLRenderCommandEncoder
     ) {
-
-        encoder.setRenderPipelineState(renderPipeline)
-        encoder.setFragmentTexture(texture, index: 0)
-        encoder.setVertexBytes(vertices, length: MemoryLayout<SimpleOverlayVertex>.stride * vertices.count, index: 0)
-
-        encoder.drawPrimitives(
-            type: .triangle,
-            vertexStart: 0,
-            vertexCount: 6
-        )
+        encode(commandBuffer, descriptor: descriptor, uniforms: &uniforms, opacity: 1.0, renderEncoder: encoder)
     }
 }
 
@@ -176,7 +218,7 @@ func gaussianWeights(radius: Int, sigma: Float) -> [Float] {
 
     var sum: Float = 0
 
-    for x in 0...radius {
+    for x in 0 ... radius {
         let xf = Float(x)
 
         let weight = exp(
@@ -215,7 +257,7 @@ class GaussianBlurPass: ComputePass {
         self.outTexture = createRenderTexture(device: device, width: 1, height: 1)
         self.inTexture = inTexture
         self.device = device
-        
+
         if isHorizontal {
             let function = library.makeFunction(name: "gaussianBlurHorizontal")!
             self.pipeline = try! device.makeComputePipelineState(function: function)
@@ -224,11 +266,11 @@ class GaussianBlurPass: ComputePass {
             self.pipeline = try! device.makeComputePipelineState(function: function)
         }
     }
-    
+
     func updateTexture() {
-        let texture = self.inTexture.unwrap()
+        let texture = inTexture.unwrap()
         if texture.width != outTexture.width || texture.height != outTexture.height {
-            self.outTexture = createRenderTexture(device: device, width: texture.width, height: texture.height)
+            outTexture = createRenderTexture(device: device, width: texture.width, height: texture.height)
         }
     }
 
@@ -241,19 +283,19 @@ class GaussianBlurPass: ComputePass {
         }
 
         encoder.label = "Gaussian Blur Horizontal"
-        
+
         encoder.setComputePipelineState(pipeline)
-        
+
         let texture = inTexture.unwrap()
-        
+
         encoder.setTexture(texture, index: 0)
         encoder.setTexture(outTexture, index: 1)
-        
+
         let radius = Int(ceil(blurAmount * 3))
         let sigma = max(blurAmount, 0.001)
-        
+
         var weights = gaussianWeights(radius: radius, sigma: sigma)
-        
+
         weights.withUnsafeBytes { rawBuffer in
             encoder.setBytes(
                 rawBuffer.baseAddress!,
@@ -261,21 +303,21 @@ class GaussianBlurPass: ComputePass {
                 index: 0
             )
         }
-        
+
         var radius32 = UInt32(radius)
-        
+
         encoder.setBytes(&radius32, length: MemoryLayout<UInt32>.stride, index: 1)
-        
+
         let width = pipeline.threadExecutionWidth
-        
+
         let height = max(1, pipeline.maxTotalThreadsPerThreadgroup / width)
-        
+
         let threadsPerThreadgroup = MTLSize(width: width, height: height, depth: 1)
-        
+
         let threadsPerGrid = MTLSize(width: texture.width, height: texture.height, depth: 1)
-        
+
         encoder.dispatchThreads(threadsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
-        
+
         encoder.endEncoding()
     }
 }
@@ -337,14 +379,14 @@ struct IntField: View {
 
                             var newValue =
                                 startValue
-                                + Int(
-                                    round(
-                                        Float(gesture.translation.width)
-                                            * sensitivity
+                                    + Int(
+                                        round(
+                                            Float(gesture.translation.width)
+                                                * sensitivity
+                                        )
                                     )
-                                )
 
-                            if !isZeroPermitted && newValue == 0 {
+                            if !isZeroPermitted, newValue == 0 {
                                 newValue = gesture.translation.width >= 0 ? 1 : -1
                             }
 
@@ -356,7 +398,7 @@ struct IntField: View {
                             isDragging = false
                         }
                 )
-            
+
             Spacer()
 
             TextField("", text: $text)
@@ -378,7 +420,7 @@ struct IntField: View {
 
                     value = number
                 }
-            
+
             if !unit.isEmpty {
                 Text(unit)
                     .foregroundStyle(.secondary)
@@ -479,7 +521,7 @@ struct UIntField: View {
 
                             var newValue = UInt32(signedValue)
 
-                            if !isZeroPermitted && newValue == 0 {
+                            if !isZeroPermitted, newValue == 0 {
                                 newValue = 1
                             }
 
@@ -491,7 +533,7 @@ struct UIntField: View {
                             isDragging = false
                         }
                 )
-            
+
             Spacer()
 
             TextField("", text: $text)
@@ -513,7 +555,7 @@ struct UIntField: View {
 
                     value = safelyCheckUInt(number)
                 }
-            
+
             if !unit.isEmpty {
                 Text(unit)
                     .foregroundStyle(.secondary)
@@ -596,9 +638,9 @@ struct FloatField: View {
 
                             var newValue =
                                 startValue
-                                + Float(gesture.translation.width) * sensitivity
+                                    + Float(gesture.translation.width) * sensitivity
 
-                            if !isZeroPermitted && abs(newValue) < 0.000001 {
+                            if !isZeroPermitted, abs(newValue) < 0.000001 {
                                 newValue = sensitivity
                             }
 
@@ -610,7 +652,7 @@ struct FloatField: View {
                             isDragging = false
                         }
                 )
-            
+
             Spacer()
 
             TextField("", text: $text)
@@ -662,30 +704,30 @@ class MTLSyncBuffer<T> {
     private var array: [T]
     private var buffer: MTLBuffer!
     private let device: MTLDevice
-    
+
     var count: Int {
         array.count
     }
-    
+
     init(device: MTLDevice, values: [T] = []) {
-        array = values
+        self.array = values
         self.device = device
-        
+
         remakeBuffer()
     }
-    
+
     func syncListToBuffer() {
         _ = array.withUnsafeBytes { bytes in
             memcpy(buffer.contents(), bytes.baseAddress!, bytes.count)
         }
     }
-    
+
     func syncBufferToList() {
         let count = array.count
         let ptr = buffer.contents().bindMemory(to: T.self, capacity: count)
         array = Array(UnsafeBufferPointer(start: ptr, count: count))
     }
-    
+
     private func syncElementToBuffer(_ index: Int) {
         let destination = buffer.contents()
             .advanced(by: index * MemoryLayout<T>.stride)
@@ -698,56 +740,56 @@ class MTLSyncBuffer<T> {
             )
         }
     }
-    
+
     func remakeBuffer() {
         let size = MemoryLayout<T>.stride * array.count
-        
+
         guard size > 0 else {
             fatalError("Cannot create a zero-length pointer")
         }
-        
+
         buffer = device.makeBuffer(bytes: array, length: size, options: .storageModeShared)
     }
-    
+
     subscript(index: Int) -> T {
         get {
             array[index]
         }
-        
+
         set {
             array[index] = newValue
             syncElementToBuffer(index)
         }
-        
+
         _modify {
             defer {
                 syncElementToBuffer(index)
             }
-            
+
             yield &array[index]
         }
     }
-    
+
     func append(_ newElement: T) {
         array.append(newElement)
         remakeBuffer()
     }
-    
+
     func removeAll() {
         array.removeAll()
         remakeBuffer()
     }
-    
+
     func remove(at i: Int) {
         array.remove(at: i)
         remakeBuffer()
     }
-    
+
     func assign(new: [T]) {
         array = new
         remakeBuffer()
     }
-    
+
     func setAtEncoder(_ encoder: MTLComputeCommandEncoder, index: Int) {
         encoder.setBuffer(buffer, offset: 0, index: index)
     }
@@ -755,11 +797,11 @@ class MTLSyncBuffer<T> {
     func addBarrier(to encoder: MTLComputeCommandEncoder) {
         encoder.memoryBarrier(resources: [buffer])
     }
-    
+
     func setAtVertexBuffer(_ encoder: MTLRenderCommandEncoder, index: Int) {
         encoder.setVertexBuffer(buffer, offset: 0, index: index)
     }
-    
+
     func set(_ elem: T, at: Int) {
         if at > array.count {
             fatalError("Tried to access past the bounds of the array")
@@ -767,12 +809,12 @@ class MTLSyncBuffer<T> {
         array[at] = elem
         syncElementToBuffer(at)
     }
-    
+
     @available(*, deprecated, message: "Try not to access internal arrays or buffers")
     func getArray() -> [T] {
         return array
     }
-    
+
     @available(*, deprecated, message: "Try not to access internal arrays or buffers")
     func getBuffer() -> MTLBuffer {
         return buffer
@@ -797,7 +839,7 @@ final class Reference<T> {
 
 extension View {
     func cursor(_ cursor: NSCursor) -> some View {
-        self.onHover { hovering in
+        onHover { hovering in
             if hovering {
                 cursor.push()
             } else {

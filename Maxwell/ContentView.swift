@@ -51,30 +51,73 @@ struct MyApp: App {
 struct ContentView: View {
     @State private var renderer: Renderer
     @State private var settings: SimulationSettings
-    @State private var selection: InspectorSelection = .source(0)
-    @State private var currentTool: Tool = .pointer
-    
+    @State private var editor: EditorState
+
     init() {
         let settings = SimulationSettings()
-        
-        self._renderer = State(initialValue: Renderer(settings: settings))
-        self._settings = State(initialValue: settings)
+        let editor = EditorState()
+
+        self._settings =
+            State(initialValue: settings)
+
+        self._editor =
+            State(initialValue: editor)
+
+        self._renderer =
+            State(
+                initialValue: Renderer(
+                    settings: settings
+                )
+            )
     }
-    
+
     var body: some View {
         VStack {
-            MetalView(renderer: renderer)
-        }.overlay {
+            MetalView(
+                renderer: renderer,
+                editor: editor
+            )
+        }
+        .overlay {
             VStack {
-                TopBar(renderer: $renderer, settings: $settings)
+                TopBar(
+                    renderer: $renderer,
+                    settings: $settings
+                )
+
                 Spacer()
+
                 HStack {
-                    Sidebar(currentTool: $currentTool)
+                    Sidebar(
+                        currentTool: Binding(
+                            get: {
+                                editor.currentTool
+                            },
+                            set: {
+                                editor.currentTool = $0
+                            }
+                        )
+                    )
+
                     Spacer()
-                    Inspector(settings: $settings, renderer: $renderer, selection: $selection)
+
+                    Inspector(
+                        settings: $settings,
+                        renderer: $renderer,
+                        selection: Binding(
+                            get: {
+                                editor.selection
+                            },
+                            set: {
+                                editor.selection = $0
+                            }
+                        )
+                    )
                 }
+
                 Spacer()
-            }.padding()
+            }
+            .padding()
         }
     }
 }
