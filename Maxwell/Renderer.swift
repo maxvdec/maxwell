@@ -34,7 +34,6 @@ final class SimulationSettings {
     var stepsPerFrame: Int = 3
     
     var blurAmount: Float = 7.0
-    
 }
 
 struct MetalView: NSViewRepresentable {
@@ -185,6 +184,72 @@ class HFieldUpdatePass: ComputePass {
     }
 }
 
+class SourceOverlayRenderer {
+    let lineTexture: MTLTexture
+    let pointTexture: MTLTexture
+    let beamTexture: MTLTexture
+    
+    let overlayPass: ImageOverlayRenderPass
+    
+    init(device: MTLDevice, library: MTLLibrary) {
+        let loader = MTKTextureLoader(device: device)
+        
+        let imageLine = NSImage(named: "LineSource")
+        let imagePoint = NSImage(named: "PointSource")
+        let imageBeam = NSImage(named: "BeamSource")
+        
+        let cgImageLine = imageLine!.cgImage(forProposedRect: nil, context: nil, hints: nil)!
+        let cgImagePoint = imagePoint!.cgImage(forProposedRect: nil, context: nil, hints: nil)!
+        let cgImageBeam = imageBeam!.cgImage(forProposedRect: nil, context: nil, hints: nil)!
+        
+        self.lineTexture = try! loader.newTexture(cgImage: cgImageLine, options: [.SRGB: false])
+        self.pointTexture = try! loader.newTexture(cgImage: cgImagePoint, options: [.SRGB: false])
+        self.beamTexture = try! loader.newTexture(cgImage: cgImageBeam, options: [.SRGB: false])
+        
+        self.overlayPass = ImageOverlayRenderPass(device: device, library: library)
+    }
+    
+    func dispatchAll(commandBuffer: MTLCommandBuffer, descriptor: MTLRenderPassDescriptor, uniforms: inout Uniforms, sources: [ElectricSource], drawableSize: NSRect, encoder: MTLRenderCommandEncoder) {
+        for source in sources {
+            let badgeSize: Float = 64
+
+            let halfWidth =
+                badgeSize / Float(drawableSize.width)
+
+            let halfHeight =
+                badgeSize / Float(drawableSize.height)
+            
+            let simX = source.x + uniforms.pmlThickness
+            let simY = source.y + uniforms.pmlThickness
+
+            let u = Float(simX) / Float(uniforms.Nx - 1)
+            let v = Float(simY) / Float(uniforms.Ny - 1)
+
+            let ndcX = u * 2.0 - 1.0
+            let ndcY = 1.0 - v * 2.0
+            
+            let left = ndcX - halfWidth
+            let right = ndcX + halfWidth
+            let top = ndcY + halfHeight
+            let bottom = ndcY - halfHeight
+
+            let vertices: [SimpleOverlayVertex] = [
+                .init(position: [left, top], uv: [0, 0]),
+                .init(position: [left, bottom], uv: [0, 1]),
+                .init(position: [right, bottom], uv: [1, 1]),
+
+                .init(position: [left, top], uv: [0, 0]),
+                .init(position: [right, bottom], uv: [1, 1]),
+                .init(position: [right, top], uv: [1, 0])
+            ]
+            
+            if source.type == SourceType.point.rawValue {
+                overlayPass.dispatchWithVerticesAndTexture(commandBuffer, descriptor: descriptor, uniforms: &uniforms, tex: pointTexture, vertices: vertices, encoder: encoder)
+            }
+        }
+    }
+}
+
 @Observable
 final class Renderer: NSObject, MTKViewDelegate {
     let device: MTLDevice
@@ -200,6 +265,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     
     private let ezUpdatePass: EzUpdatePass
     private let hUpdatePass: HFieldUpdatePass
+    
+    private let sourceOverlayRenderer: SourceOverlayRenderer
     
     private var cells: MTLSyncBuffer<GridCell>
     private var sources: [ElectricSource]
@@ -257,6 +324,8 @@ final class Renderer: NSObject, MTKViewDelegate {
         self.hUpdatePass = HFieldUpdatePass(device: device, library: library, cells: Reference())
         self.uniforms = Uniforms()
         self.sources = [ElectricSource()]
+        
+        self.sourceOverlayRenderer = SourceOverlayRenderer(device: device, library: library)
     }
     
     static func makeCells(nx: Int, ny: Int) -> [GridCell] {
@@ -264,8 +333,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     }
     
     func addSource(_ source: ElectricSource, name: String) {
-        self.sources.append(source)
-        self.sourceNames.append(name)
+        sources.append(source)
+        sourceNames.append(name)
     }
     
     func updateSource(i: Int, source: ElectricSource) {
@@ -278,30 +347,30 @@ final class Renderer: NSObject, MTKViewDelegate {
     }
      
     func getNameForSource(i: Int) -> String? {
-        return self.sourceNames[i]
+        return sourceNames[i]
     }
     
-    func getSource(i : Int) -> ElectricSource? {
-        return self.sources[i]
+    func getSource(i: Int) -> ElectricSource? {
+        return sources[i]
     }
     
     func updateRenderTexture(view: MTKView) {
         ezRenderPass.texturePass.value = texturePass
         texturePass.updateTexture(for: view.frame)
-        gaussianHorizontal.inTexture.value = self.texturePass.texture
+        gaussianHorizontal.inTexture.value = texturePass.texture
         gaussianHorizontal.updateTexture()
         gaussianVertical.inTexture.value = gaussianHorizontal.outTexture
         gaussianVertical.updateTexture()
     }
     
     func updateUniforms(view: MTKView) {
-        self.ezRenderPass.cells.value = cells
-        self.ezUpdatePass.cells.value = cells
-        self.ezUpdatePass.sources.value = sources
-        self.hUpdatePass.cells.value = cells
+        ezRenderPass.cells.value = cells
+        ezUpdatePass.cells.value = cells
+        ezUpdatePass.sources.value = sources
+        hUpdatePass.cells.value = cells
         
-        self.gaussianVertical.blurAmount = settings.blurAmount
-        self.gaussianHorizontal.blurAmount = settings.blurAmount
+        gaussianVertical.blurAmount = settings.blurAmount
+        gaussianHorizontal.blurAmount = settings.blurAmount
         
         uniforms.dx = settings.width / Float(settings.Nx)
         uniforms.dy = settings.height / Float(settings.Ny)
@@ -338,7 +407,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
         updateRenderTexture(view: view)
-        self.drawableSize = view.drawableSize
+        drawableSize = view.drawableSize
         
         let gridConfig = gridConfiguration(for: drawableSize, maxCells: settings.Nx, physicalWidth: settings.width)
         settings.Nx = gridConfig.nx
@@ -348,7 +417,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     }
     
     func stepFrame(commandBuffer: MTLCommandBuffer) {
-        for _ in 0..<settings.stepsPerFrame {
+        for _ in 0 ..< settings.stepsPerFrame {
             uniforms.t = simTime
             
             hUpdatePass.encodeCompute(
@@ -394,8 +463,16 @@ final class Renderer: NSObject, MTKViewDelegate {
         gaussianHorizontal.encodeCompute(commandBuffer, uniforms: &uniforms)
         gaussianVertical.encodeCompute(commandBuffer, uniforms: &uniforms)
         
+        guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else {
+            return
+        }
+        
         texturePass.texture = gaussianVertical.outTexture
-        texturePass.encode(commandBuffer, descriptor: descriptor, uniforms: &uniforms)
+        texturePass.encode(commandBuffer, descriptor: descriptor, uniforms: &uniforms, renderEncoder: encoder)
+        
+        sourceOverlayRenderer.dispatchAll(commandBuffer: commandBuffer, descriptor: descriptor, uniforms: &uniforms, sources: sources, drawableSize: view.frame, encoder: encoder)
+        
+        encoder.endEncoding()
         
         commandBuffer.present(drawable)
         commandBuffer.commit()
@@ -406,7 +483,8 @@ final class Renderer: NSObject, MTKViewDelegate {
         maxCells: Int = 500
     ) -> (nx: Int, ny: Int) {
         guard resolution.width > 0,
-              resolution.height > 0 else {
+              resolution.height > 0
+        else {
             return (maxCells, maxCells)
         }
 

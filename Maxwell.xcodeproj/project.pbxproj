@@ -6,8 +6,13 @@
 	objectVersion = 90;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		6238FD8D3046EE3C00B6E58A /* Media.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6238FD8C3046EE3C00B6E58A /* Media.xcassets */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		000000000000000000000120 /* Maxwell.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Maxwell.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6238FD8C3046EE3C00B6E58A /* Media.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Media.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -32,6 +37,7 @@
 			children = (
 				000000000000000000000010 /* Maxwell */,
 				000000000000000000000020 /* Products */,
+				6238FD8C3046EE3C00B6E58A /* Media.xcassets */,
 			);
 			sourceTree = "<group>";
 		};
@@ -102,6 +108,7 @@
 		000000000000000140000000 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
+				6238FD8D3046EE3C00B6E58A /* Media.xcassets in Resources */,
 			);
 		};
 /* End PBXResourcesBuildPhase section */

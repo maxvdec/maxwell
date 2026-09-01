@@ -35,7 +35,7 @@ func createRenderPipeline(vertex: String, fragment: String, device: MTLDevice) t
 }
 
 protocol MetalPass {
-    func encode(_ commandBuffer: MTLCommandBuffer, descriptor: MTLRenderPassDescriptor, uniforms: inout Uniforms)
+    func encode(_ commandBuffer: MTLCommandBuffer, descriptor: MTLRenderPassDescriptor, uniforms: inout Uniforms, renderEncoder: MTLRenderCommandEncoder)
 }
 
 protocol ComputePass: MetalPass {
@@ -43,7 +43,7 @@ protocol ComputePass: MetalPass {
 }
 
 extension ComputePass {
-    func encode(_ commandBuffer: any MTLCommandBuffer, descriptor: MTLRenderPassDescriptor, uniforms: inout Uniforms) {
+    func encode(_ commandBuffer: any MTLCommandBuffer, descriptor: MTLRenderPassDescriptor, uniforms: inout Uniforms, renderEncoder: MTLRenderCommandEncoder) {
         encodeCompute(commandBuffer, uniforms: &uniforms)
     }
 }
@@ -103,15 +103,10 @@ class TextureRenderPass: RenderPass {
     func encode(
         _ commandBuffer: any MTLCommandBuffer,
         descriptor: MTLRenderPassDescriptor,
-        uniforms: inout Uniforms
+        uniforms: inout Uniforms,
+        renderEncoder encoder: MTLRenderCommandEncoder
     ) {
-        guard let encoder = commandBuffer.makeRenderCommandEncoder(
-            descriptor: descriptor
-        ) else {
-            return
-        }
-
-        encoder.label = "Texture Render Pass"
+        encoder.label = "Render Pass"
 
         encoder.setRenderPipelineState(renderPipeline)
         encoder.setFragmentTexture(texture, index: 0)
@@ -121,8 +116,58 @@ class TextureRenderPass: RenderPass {
             vertexStart: 0,
             vertexCount: 6
         )
+    }
+}
 
-        encoder.endEncoding()
+struct SimpleOverlayVertex {
+    var position: SIMD2<Float>
+    var uv: SIMD2<Float>
+}
+
+class ImageOverlayRenderPass: RenderPass {
+    var texture: MTLTexture? = nil
+    let renderPipeline: MTLRenderPipelineState
+    let device: MTLDevice
+    var vertices: [SimpleOverlayVertex] = []
+
+    init(
+        device: MTLDevice,
+        library: MTLLibrary
+    ) {
+        self.device = device
+
+        self.renderPipeline = try! createRenderPipeline(
+            vertex: "imageOverlayVertex",
+            fragment: "imageOverlayFragment",
+            device: device
+        )
+    }
+    
+    func dispatchWithVerticesAndTexture(_ commandBuffer: any MTLCommandBuffer,
+                                        descriptor: MTLRenderPassDescriptor,
+                                        uniforms: inout Uniforms, tex: MTLTexture, vertices: [SimpleOverlayVertex], encoder: MTLRenderCommandEncoder) {
+        self.texture = tex
+        self.vertices = vertices
+        
+        encode(commandBuffer, descriptor: descriptor, uniforms: &uniforms, renderEncoder: encoder)
+    }
+
+    func encode(
+        _ commandBuffer: any MTLCommandBuffer,
+        descriptor: MTLRenderPassDescriptor,
+        uniforms: inout Uniforms,
+        renderEncoder encoder: MTLRenderCommandEncoder
+    ) {
+
+        encoder.setRenderPipelineState(renderPipeline)
+        encoder.setFragmentTexture(texture, index: 0)
+        encoder.setVertexBytes(vertices, length: MemoryLayout<SimpleOverlayVertex>.stride * vertices.count, index: 0)
+
+        encoder.drawPrimitives(
+            type: .triangle,
+            vertexStart: 0,
+            vertexCount: 6
+        )
     }
 }
 

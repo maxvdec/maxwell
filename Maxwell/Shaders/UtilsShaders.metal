@@ -138,3 +138,45 @@ kernel void gaussianBlurVertical(
 
     outputTexture.write(result, id);
 }
+
+struct ImageOverlayVertex {
+    float2 position;
+    float2 uv;
+};
+
+struct ImageOverlayOut {
+    float4 position [[position]];
+    float2 uv;
+};
+
+vertex ImageOverlayOut imageOverlayVertex(
+    const device ImageOverlayVertex* vertices [[buffer(0)]],
+    uint vertexID [[vertex_id]]
+) {
+    ImageOverlayOut out;
+
+    out.position = float4(
+        vertices[vertexID].position,
+        0.0,
+        1.0
+    );
+
+    out.uv = vertices[vertexID].uv;
+
+    return out;
+}
+
+fragment float4 imageOverlayFragment(
+    ImageOverlayOut in [[stage_in]],
+    texture2d<float> sourceTexture [[texture(0)]]
+) {
+    constexpr sampler sourceSampler(
+        min_filter::linear,
+        mag_filter::linear
+    );
+
+    return sourceTexture.sample(
+        sourceSampler,
+        in.uv
+    );
+}
