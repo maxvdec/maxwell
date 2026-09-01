@@ -94,7 +94,7 @@ class TextureRenderPass: RenderPass {
         )
     }
     
-    func updateTexture(for size: CGRect) {
+    func updateTexture(for size: CGSize) {
         if Int(size.width) != texture.width || Int(size.height) != texture.height {
             self.texture = createRenderTexture(device: device, width: Int(size.width), height: Int(size.height))
         }

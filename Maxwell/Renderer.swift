@@ -209,21 +209,27 @@ class SourceOverlayRenderer {
         self.overlayPass = ImageOverlayRenderPass(device: device, library: library)
     }
     
-    func dispatchAll(commandBuffer: MTLCommandBuffer, descriptor: MTLRenderPassDescriptor, uniforms: inout Uniforms, sources: [ElectricSource], drawableSize: NSRect, encoder: MTLRenderCommandEncoder) {
+    func dispatchAll(commandBuffer: MTLCommandBuffer, descriptor: MTLRenderPassDescriptor, uniforms: inout Uniforms, sources: [ElectricSource], drawableSize: CGSize, encoder: MTLRenderCommandEncoder) {
         for source in sources {
             let badgeSize: Float = 64
-
+    
             let halfWidth =
                 badgeSize / Float(drawableSize.width)
 
             let halfHeight =
                 badgeSize / Float(drawableSize.height)
             
-            let simX = source.x + uniforms.pmlThickness
-            let simY = source.y + uniforms.pmlThickness
+            let visibleNx =
+                uniforms.Nx - 2 * uniforms.pmlThickness
 
-            let u = Float(simX) / Float(uniforms.Nx - 1)
-            let v = Float(simY) / Float(uniforms.Ny - 1)
+            let visibleNy =
+                uniforms.Ny - 2 * uniforms.pmlThickness
+
+            let u =
+                Float(source.x) / Float(visibleNx - 1)
+
+            let v =
+                Float(source.y) / Float(visibleNy - 1)
 
             let ndcX = u * 2.0 - 1.0
             let ndcY = 1.0 - v * 2.0
@@ -356,7 +362,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     
     func updateRenderTexture(view: MTKView) {
         ezRenderPass.texturePass.value = texturePass
-        texturePass.updateTexture(for: view.frame)
+        texturePass.updateTexture(for: view.drawableSize)
         gaussianHorizontal.inTexture.value = texturePass.texture
         gaussianHorizontal.updateTexture()
         gaussianVertical.inTexture.value = gaussianHorizontal.outTexture
@@ -470,7 +476,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         texturePass.texture = gaussianVertical.outTexture
         texturePass.encode(commandBuffer, descriptor: descriptor, uniforms: &uniforms, renderEncoder: encoder)
         
-        sourceOverlayRenderer.dispatchAll(commandBuffer: commandBuffer, descriptor: descriptor, uniforms: &uniforms, sources: sources, drawableSize: view.frame, encoder: encoder)
+        sourceOverlayRenderer.dispatchAll(commandBuffer: commandBuffer, descriptor: descriptor, uniforms: &uniforms, sources: sources, drawableSize: view.drawableSize, encoder: encoder)
         
         encoder.endEncoding()
         

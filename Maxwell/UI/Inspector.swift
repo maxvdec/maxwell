@@ -58,13 +58,10 @@ struct Inspector: View {
             .frame(maxWidth: 300)
             .padding(30)
         }
-        .background {
-            Color(nsColor: .windowBackgroundColor).opacity(0.4)
-                .glassEffect(
-                    .regular,
-                    in: .rect(cornerRadius: 40)
-                )
-        }
+        .glassEffect(
+            .regular,
+            in: .rect(cornerRadius: 40)
+        )
         .onAppear {
             updateElementName()
         }
@@ -121,7 +118,7 @@ struct Inspector: View {
             HStack() {
                 Spacer()
                 Button {
-                    sourceSetProperty(\.y, value: safelyCheckUInt(settings.Ny - 1))
+                    sourceSetProperty(\.y, value: 1)
                 } label: {
                     Image(systemName: "align.vertical.top")
                         .resizable()
@@ -145,7 +142,7 @@ struct Inspector: View {
                 .cursor(.pointingHand)
                 .buttonStyle(.glass)
                 Button {
-                    sourceSetProperty(\.y, value: 1)
+                    sourceSetProperty(\.y, value: safelyCheckUInt(settings.Ny - 1))
                 } label: {
                     Image(systemName: "align.vertical.bottom")
                         .resizable()
