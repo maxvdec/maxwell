@@ -34,19 +34,53 @@ enum InspectorSelection: Equatable {
 
 struct Inspector: View {
     @State var elementName: String = "<none>"
+    @State private var isEditingName = false
+    @State private var editingName = ""
+
+    @FocusState private var nameFieldFocused: Bool
+    
     @State private var width: CGFloat = 300
     @Binding var settings: SimulationSettings
     @Binding var renderer: Renderer
     @Binding var selection: InspectorSelection
     
     @State private var desiredCellsPerWavelength: Int = 20
+    
+    private var isSourceSelected: Bool {
+        if case .source = selection {
+            return true
+        }
+
+        return false
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading) {
-                Text(elementName)
-                    .font(.title)
-                    .bold()
+                Group {
+                    if isEditingName {
+                        TextField("", text: $editingName)
+                            .textFieldStyle(.plain)
+                            .font(.title)
+                            .bold()
+                            .focused($nameFieldFocused)
+                            .onSubmit {
+                                commitNameEdit()
+                            }
+                            .onExitCommand {
+                                cancelNameEdit()
+                            }
+                    } else {
+                        Text(elementName)
+                            .font(.title)
+                            .bold()
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                beginNameEdit()
+                            }
+                            .cursor(isSourceSelected ? .iBeam : .arrow)
+                    }
+                }
                 Divider()
                 if case .source = selection {
                     sourceSection
@@ -66,8 +100,63 @@ struct Inspector: View {
             updateElementName()
         }
         .onChange(of: selection) {
+            isEditingName = false
+            nameFieldFocused = false
+
             updateElementName()
         }
+        .onChange(of: nameFieldFocused) { _, focused in
+            if !focused && isEditingName {
+                commitNameEdit()
+            }
+        }
+    }
+    
+    private func beginNameEdit() {
+        guard case .source = selection else {
+            return
+        }
+
+        editingName = elementName
+        isEditingName = true
+
+        DispatchQueue.main.async {
+            nameFieldFocused = true
+        }
+    }
+    
+    private func commitNameEdit() {
+        guard case let .source(i) = selection else {
+            cancelNameEdit()
+            return
+        }
+
+        let name =
+            editingName
+            .trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+
+        guard !name.isEmpty else {
+            cancelNameEdit()
+            return
+        }
+
+        renderer.renameSource(
+            i: i,
+            name: name
+        )
+
+        elementName = name
+
+        isEditingName = false
+        nameFieldFocused = false
+    }
+    
+    private func cancelNameEdit() {
+        editingName = elementName
+        isEditingName = false
+        nameFieldFocused = false
     }
     
     var sourceSection: some View {
@@ -247,9 +336,14 @@ struct Inspector: View {
             elementName = "World"
 
         case let .source(i):
-            let name = renderer.getNameForSource(i: i)
-            elementName = name ?? "Source \(i)"
+            let name =
+                renderer.getNameForSource(i: i)
+
+            elementName =
+                name ?? "Source \(i)"
         }
+
+        editingName = elementName
     }
     
     private func sourceSetProperty<T>(_ keyPath: WritableKeyPath<ElectricSource, T>, value: T) {

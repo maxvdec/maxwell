@@ -33,7 +33,7 @@ final class SimulationSettings {
     var reflectWalls: Bool = false
     var stepsPerFrame: Int = 3
 
-    var blurAmount: Float = 7.0
+    var blurAmount: Float = 15.0
 }
 
 struct MetalView: NSViewRepresentable {
@@ -721,6 +721,18 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     func updateSource(i: Int, source: ElectricSource) {
         sources[i] = source
+        sourcesRevision += 1
+    }
+    
+    func renameSource(
+        i: Int,
+        name: String
+    ) {
+        guard sourceNames.indices.contains(i) else {
+            return
+        }
+
+        sourceNames[i] = name
         sourcesRevision += 1
     }
 
