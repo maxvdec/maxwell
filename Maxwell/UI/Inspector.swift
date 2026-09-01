@@ -135,7 +135,30 @@ struct Inspector: View {
                 }
             }
             
+            Button {
+                renderer.removeSource(i: getSourceIndex())
+                selection = .none
+            } label: {
+                Text("Remove Source")
+                    .frame(maxWidth: .infinity)
+                    .padding(10)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color(red: 0.35, green: 0.0, blue: 0.0))
+            .glassEffect(.regular.tint(.red))
+            .focusable(false)
+            
             Divider()
+        }
+    }
+    
+    private func getSourceIndex() -> Int {
+        switch selection {
+        case .none:
+            return -1
+        case .source(let int):
+            return int
         }
     }
     

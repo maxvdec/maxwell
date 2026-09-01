@@ -271,6 +271,10 @@ final class Renderer: NSObject, MTKViewDelegate {
         sourcesRevision += 1
     }
     
+    func removeSource(i: Int) {
+        sources.remove(at: i)
+    }
+     
     func getNameForSource(i: Int) -> String? {
         return self.sourceNames[i]
     }

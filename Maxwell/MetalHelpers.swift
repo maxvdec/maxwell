@@ -690,6 +690,11 @@ class MTLSyncBuffer<T> {
         remakeBuffer()
     }
     
+    func remove(at i: Int) {
+        array.remove(at: i)
+        remakeBuffer()
+    }
+    
     func assign(new: [T]) {
         array = new
         remakeBuffer()
