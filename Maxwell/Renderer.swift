@@ -1444,7 +1444,7 @@ final class Renderer: NSObject, MTKViewDelegate {
                 commandBuffer,
                 uniforms: &uniforms
             )
-        } else {
+        } else if visualizationMethod != .poynting {
             gaussianHorizontal.inTexture.value =
                 ezRenderPass.outputTexture
             gaussianHorizontal.encodeCompute(
@@ -1463,10 +1463,14 @@ final class Renderer: NSObject, MTKViewDelegate {
             return
         }
 
-        texturePass.texture =
-            visualizationMethod == .energyGlow
-            ? energyGlowComposite.outputTexture
-            : gaussianVertical.outTexture
+        switch visualizationMethod {
+        case .energyGlow:
+            texturePass.texture = energyGlowComposite.outputTexture
+        case .poynting:
+            texturePass.texture = ezRenderPass.outputTexture
+        default:
+            texturePass.texture = gaussianVertical.outTexture
+        }
         texturePass.encode(commandBuffer, descriptor: descriptor, uniforms: &uniforms, renderEncoder: encoder)
 
         sourceGeometryRenderer.dispatchAll(commandBuffer: commandBuffer, descriptor: descriptor, sources: sources, uniforms: uniforms, drawableSize: view.drawableSize, encoder: encoder)

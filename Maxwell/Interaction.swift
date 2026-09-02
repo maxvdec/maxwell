@@ -118,6 +118,7 @@ enum VisualizationMode: Int32, CaseIterable {
     case electricMagnitude = 1
     case magneticMagnitude = 2
     case electricDensity = 3
+    case poynting = 5
 
     var name: String {
         switch self {
@@ -133,6 +134,8 @@ enum VisualizationMode: Int32, CaseIterable {
             "Magnetic Magnitude"
         case .electricDensity:
             "Electric Energy Density"
+        case .poynting:
+            "Poynting"
         }
     }
 
@@ -150,6 +153,8 @@ enum VisualizationMode: Int32, CaseIterable {
             "wave.3.left"
         case .electricDensity:
             "graph.2d"
+        case .poynting:
+            "arrow.up.right"
         }
     }
     
@@ -167,6 +172,8 @@ enum VisualizationMode: Int32, CaseIterable {
                 .green.opacity(0.7)
         case .electricDensity:
                 .orange.opacity(0.7)
+        case .poynting:
+                .cyan.opacity(0.85)
         }
     }
 }
