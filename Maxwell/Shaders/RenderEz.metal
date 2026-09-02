@@ -12,6 +12,7 @@ using namespace metal;
 enum VisualizationMode : int {
     MODE_EZ = 0,
     MODE_MAGNITUDE = 1,
+    MODE_MAGNETIC_MAGNITUDE = 2,
 };
 
 kernel void renderEz(
@@ -52,7 +53,13 @@ kernel void renderEz(
     
     uint index = y * uniforms.Nx + x;
     
+    uint indexDown = (y - 1) * uniforms.Nx + x;
+    uint indexLeft = y * uniforms.Nx + (x - 1);
+    
     float ez = cells[index].Ez;
+    float2 h = cells[index].H;
+    float2 hDown = cells[indexDown].H;
+    float2 hLeft = cells[indexLeft].H;
     
     if (uniforms.visualizationMode == MODE_EZ) {
         float x = ez * uniforms.visualizationScale;
@@ -70,7 +77,7 @@ kernel void renderEz(
             : positiveColor * v;
 
         outTexture.write(float4(color, 1.0), id);
-    } else {
+    } else if (uniforms.visualizationMode == MODE_MAGNITUDE) {
         float x = abs(ez) * uniforms.visualizationScale;
 
         float v = log(1.0 + x);
@@ -78,5 +85,23 @@ kernel void renderEz(
         v = clamp(v, 0.0, 1.0);
 
         outTexture.write(float4(v, v, v, 1.0), id);
+    } else if (uniforms.visualizationMode == MODE_MAGNETIC_MAGNITUDE) {
+        constexpr float Z0 = 376.730313668f;
+
+        float hx = 0.5 * (h.x + hDown.x);
+        float hy = 0.5 * (h.y + hLeft.y);
+
+        float hMagnitude =
+            length(float2(hx, hy))
+            * Z0
+            * uniforms.visualizationScale;
+        
+        float v = log(1.0 + hMagnitude);
+        v /= log(1.0 + 10.0);
+        v = clamp(v, 0.0, 1.0);
+        
+        outTexture.write(float4(v, v, v, 1.0), id);
+    } else {
+        outTexture.write(float4(1.0, 0.0, 1.0, 1.0), id);
     }
 }
