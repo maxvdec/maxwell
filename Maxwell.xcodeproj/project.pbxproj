@@ -8,11 +8,21 @@
 
 /* Begin PBXBuildFile section */
 		6238FD8D3046EE3C00B6E58A /* Media.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6238FD8C3046EE3C00B6E58A /* Media.xcassets */; };
+		627AAE7430484B8500DE2F15 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 627AAE7330484B8500DE2F15 /* README.md */; };
+		627AAE7930484D1C00DE2F15 /* screenshot2.png in Resources */ = {isa = PBXBuildFile; fileRef = 627AAE7630484D1C00DE2F15 /* screenshot2.png */; };
+		627AAE7A30484D1C00DE2F15 /* screenshot1.png in Resources */ = {isa = PBXBuildFile; fileRef = 627AAE7530484D1C00DE2F15 /* screenshot1.png */; };
+		627AAE7B30484D1C00DE2F15 /* screenshot4.png in Resources */ = {isa = PBXBuildFile; fileRef = 627AAE7830484D1C00DE2F15 /* screenshot4.png */; };
+		627AAE7C30484D1C00DE2F15 /* screenshot3.png in Resources */ = {isa = PBXBuildFile; fileRef = 627AAE7730484D1C00DE2F15 /* screenshot3.png */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		000000000000000000000120 /* Maxwell.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Maxwell.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6238FD8C3046EE3C00B6E58A /* Media.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Media.xcassets; sourceTree = "<group>"; };
+		627AAE7330484B8500DE2F15 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		627AAE7530484D1C00DE2F15 /* screenshot1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = screenshot1.png; sourceTree = "<group>"; };
+		627AAE7630484D1C00DE2F15 /* screenshot2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = screenshot2.png; sourceTree = "<group>"; };
+		627AAE7730484D1C00DE2F15 /* screenshot3.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = screenshot3.png; sourceTree = "<group>"; };
+		627AAE7830484D1C00DE2F15 /* screenshot4.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = screenshot4.png; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -35,6 +45,11 @@
 		000000000000000000000001 = {
 			isa = PBXGroup;
 			children = (
+				627AAE7530484D1C00DE2F15 /* screenshot1.png */,
+				627AAE7630484D1C00DE2F15 /* screenshot2.png */,
+				627AAE7730484D1C00DE2F15 /* screenshot3.png */,
+				627AAE7830484D1C00DE2F15 /* screenshot4.png */,
+				627AAE7330484B8500DE2F15 /* README.md */,
 				000000000000000000000010 /* Maxwell */,
 				000000000000000000000020 /* Products */,
 				6238FD8C3046EE3C00B6E58A /* Media.xcassets */,
@@ -108,7 +123,12 @@
 		000000000000000140000000 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
+				627AAE7430484B8500DE2F15 /* README.md in Resources */,
 				6238FD8D3046EE3C00B6E58A /* Media.xcassets in Resources */,
+				627AAE7930484D1C00DE2F15 /* screenshot2.png in Resources */,
+				627AAE7A30484D1C00DE2F15 /* screenshot1.png in Resources */,
+				627AAE7B30484D1C00DE2F15 /* screenshot4.png in Resources */,
+				627AAE7C30484D1C00DE2F15 /* screenshot3.png in Resources */,
 			);
 		};
 /* End PBXResourcesBuildPhase section */
