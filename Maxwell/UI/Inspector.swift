@@ -82,7 +82,8 @@ struct Inspector: View {
                     }
                 }
                 Divider()
-                if case .source = selection {
+                if case let .source(i) = selection,
+                   renderer.getSource(i: i) != nil {
                     sourceSection
                 }
                 gridSection
@@ -249,12 +250,12 @@ struct Inspector: View {
                 Spacer()
                 UIntField("Y:", value: sourceBinding(\.y, default: 0), unit: "")
             }
-            if getSourceType() != .point  {
+            if getSourceType() != .point {
                 UIntField("Width", value: sourceBinding(\.length, default: 0), unit: "")
                 FloatField("Rotation", value: sourceBinding(\.rotation, default: 0), unit: "°")
             }
             
-            if getSourceType() == .beam  {
+            if getSourceType() == .beam {
                 FloatField("Beam Waist", value: sourceBinding(\.beamWaist, default: 0), unit: "")
             }
             
@@ -385,8 +386,10 @@ struct Inspector: View {
             }
             
             Button {
-                renderer.removeSource(i: getSourceIndex())
+                let index = getSourceIndex()
+
                 selection = .none
+                renderer.removeSource(i: index)
             } label: {
                 Text("Remove Source")
                     .frame(maxWidth: .infinity)
@@ -403,12 +406,26 @@ struct Inspector: View {
         }
     }
     
-    private func getSourceForm() -> SourceForm {
-        return SourceForm(rawValue: renderer.getSource(i: getSourceIndex())!.form)!
+    private func getSourceForm() -> SourceForm? {
+        guard
+            case let .source(i) = selection,
+            let source = renderer.getSource(i: i)
+        else {
+            return nil
+        }
+
+        return SourceForm(rawValue: source.form)
     }
     
-    private func getSourceType() -> SourceType {
-        return SourceType(rawValue: renderer.getSource(i: getSourceIndex())!.type)!
+    private func getSourceType() -> SourceType? {
+        guard
+            case let .source(i) = selection,
+            let source = renderer.getSource(i: i)
+        else {
+            return nil
+        }
+
+        return SourceType(rawValue: source.type)
     }
     
     private func getSourceIndex() -> Int {
@@ -436,24 +453,32 @@ struct Inspector: View {
         editingName = elementName
     }
     
-    private func sourceSetProperty<T>(_ keyPath: WritableKeyPath<ElectricSource, T>, value: T) {
-        guard case let .source(i) = selection else {
+    private func sourceSetProperty<T>(
+        _ keyPath: WritableKeyPath<ElectricSource, T>,
+        value: T
+    ) {
+        guard
+            case let .source(i) = selection,
+            var source = renderer.getSource(i: i)
+        else {
             return
         }
-        
-        var oldSource = renderer.getSource(i: i)!
-        oldSource[keyPath: keyPath] = value
 
-        renderer.updateSource(i: i, source: oldSource)
+        source[keyPath: keyPath] = value
+        renderer.updateSource(i: i, source: source)
     }
     
-    private func sourceGetProperty<T>(_ keyPath: WritableKeyPath<ElectricSource, T>) -> T? {
-        guard case let .source(i) = selection else {
+    private func sourceGetProperty<T>(
+        _ keyPath: WritableKeyPath<ElectricSource, T>
+    ) -> T? {
+        guard
+            case let .source(i) = selection,
+            let source = renderer.getSource(i: i)
+        else {
             return nil
         }
-        
-        var src = renderer.getSource(i: i)!
-        return src[keyPath: keyPath]
+
+        return source[keyPath: keyPath]
     }
     
     private func sourceBinding<T>(

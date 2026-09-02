@@ -804,7 +804,9 @@ class SourceGeometryRenderer {
                 0.23,
                 0.19,
                 1.0
-            )
+            ),
+            beamWaistPx: source.beamWaist * cellSizePx.x,
+            isBeam: source.type == SourceType.beam.rawValue ? 1 : 0
         )
 
         pass
@@ -972,10 +974,18 @@ final class Renderer: NSObject, MTKViewDelegate {
     }
 
     func getNameForSource(i: Int) -> String? {
+        guard sourceNames.indices.contains(i) else {
+            return nil
+        }
+
         return sourceNames[i]
     }
 
     func getSource(i: Int) -> ElectricSource? {
+        guard sources.indices.contains(i) else {
+            return nil
+        }
+
         return sources[i]
     }
 

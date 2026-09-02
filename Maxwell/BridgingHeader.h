@@ -60,6 +60,9 @@ struct LineGeometryUniforms {
     simd_float2 sizePx;
     float borderPx;
     simd_float4 borderColor;
+    
+    float beamWaistPx;
+    unsigned int isBeam;
 };
 
 

@@ -224,6 +224,24 @@ fragment float4 rectangleOverlayFragment(
     if (distanceToEdge <= u.borderPx) {
         return u.borderColor;
     }
+    
+    if (u.isBeam != 0) {
+        float x =
+            pixelPos.x - u.sizePx.x * 0.5;
+
+        float waist =
+            max(u.beamWaistPx, 0.001);
+
+        float profile =
+            exp(-(x * x) / (waist * waist));
+
+        return float4(
+            1.0,
+            0.23,
+            0.19,
+            profile * 0.45
+        );
+    }
 
     return float4(0.0, 0.0, 0.0, 1.0);
 }
