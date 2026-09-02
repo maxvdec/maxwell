@@ -14,6 +14,7 @@ enum VisualizationMode : int {
     MODE_MAGNITUDE = 1,
     MODE_MAGNETIC_MAGNITUDE = 2,
     MODE_ELECTRIC_DENSITY = 3,
+    MODE_ENERGY_GLOW = 4,
 };
 
 kernel void renderEz(
@@ -118,13 +119,35 @@ kernel void renderEz(
         float electricEnergy = 0.5f * epsilon * ez * ez;
 
         // Display gain, not physical scaling
-        float x = electricEnergy * 1e12f uniforms.visualizationScale;
+        float x = electricEnergy * 1e12f * uniforms.visualizationScale;
 
         float v = log(1.0f + x);
         v /= log(1.0f + 10.0f);
         v = clamp(v, 0.0f, 1.0f);
 
         outTexture.write(float4(v, v, v, 1.0f), id);
+    } else if (uniforms.visualizationMode == MODE_ENERGY_GLOW) {
+        const float epsilon0 = 8.854187817e-12f;
+        const float mu0 = 1.25663706212e-6f;
+
+        float hx = 0.5f * (h.x + hDown.x);
+        float hy = 0.5f * (h.y + hLeft.y);
+
+        float electricEnergy =
+            0.5f * epsilon0 * mat.epsilonR * ez * ez;
+
+        float magneticEnergy =
+            0.5f * mu0 * mat.muR *
+            dot(float2(hx, hy), float2(hx, hy));
+
+        float exposure = 1e12f * uniforms.visualizationScale;
+        float electric = 1.0f - exp(-electricEnergy * exposure);
+        float magnetic = 1.0f - exp(-magneticEnergy * exposure);
+
+        outTexture.write(
+            float4(electric, magnetic, 0.0f, 1.0f),
+            id
+        );
     } else {
         outTexture.write(float4(1.0, 0.0, 1.0, 1.0), id);
     }

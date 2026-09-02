@@ -113,6 +113,7 @@ final class EditorState {
 
 enum VisualizationMode: Int32, CaseIterable {
     case field2D = 0
+    case energyGlow = 4
     case field3D = -1
     case electricMagnitude = 1
     case magneticMagnitude = 2
@@ -122,6 +123,8 @@ enum VisualizationMode: Int32, CaseIterable {
         switch self {
         case .field2D:
             "2D Field"
+        case .energyGlow:
+            "Energy Glow"
         case .field3D:
             "3D Graph"
         case .electricMagnitude:
@@ -137,6 +140,8 @@ enum VisualizationMode: Int32, CaseIterable {
         switch self {
         case .field2D:
             "square.grid.2x2"
+        case .energyGlow:
+            "sparkles"
         case .field3D:
             "graph.3d"
         case .electricMagnitude:
@@ -152,6 +157,8 @@ enum VisualizationMode: Int32, CaseIterable {
         switch self {
         case .field2D:
                 .red.opacity(0.7)
+        case .energyGlow:
+                .white.opacity(0.9)
         case .field3D:
                 .blue.opacity(0.7)
         case .electricMagnitude:

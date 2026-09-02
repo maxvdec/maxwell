@@ -244,16 +244,34 @@ struct MetalView: NSViewRepresentable {
 
 class EzRenderPass: ComputePass {
     let pipeline: MTLComputePipelineState
-    var texturePass: Reference<TextureRenderPass>
     var cells: Reference<MTLSyncBuffer<GridCell>>
     var materials: Reference<[EMMaterial]>
+    var outputTexture: MTLTexture
 
-    init(device: MTLDevice, library: MTLLibrary, texturePass: Reference<TextureRenderPass>, cells: Reference<MTLSyncBuffer<GridCell>>, materials: Reference<[EMMaterial]>) {
-        self.texturePass = texturePass
+    private let device: MTLDevice
+
+    init(device: MTLDevice, library: MTLLibrary, cells: Reference<MTLSyncBuffer<GridCell>>, materials: Reference<[EMMaterial]>) {
+        self.device = device
         let function = library.makeFunction(name: "renderEz")!
         self.pipeline = try! device.makeComputePipelineState(function: function)
         self.cells = cells
         self.materials = materials
+        self.outputTexture = createRenderTexture(
+            device: device,
+            width: 1,
+            height: 1
+        )
+    }
+
+    func updateTexture(for size: CGSize) {
+        if Int(size.width) != outputTexture.width ||
+            Int(size.height) != outputTexture.height {
+            outputTexture = createRenderTexture(
+                device: device,
+                width: Int(size.width),
+                height: Int(size.height)
+            )
+        }
     }
 
     func encodeCompute(_ commandBuffer: any MTLCommandBuffer, uniforms: inout Uniforms) {
@@ -265,9 +283,7 @@ class EzRenderPass: ComputePass {
 
         encoder.setComputePipelineState(pipeline)
 
-        let texture = texturePass.unwrap().texture
-
-        encoder.setTexture(texture, index: 0)
+        encoder.setTexture(outputTexture, index: 0)
 
         cells.unwrap().setAtEncoder(encoder, index: 0)
         encoder.setBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
@@ -281,7 +297,7 @@ class EzRenderPass: ComputePass {
 
         let threadsPerThreadgroup = MTLSize(width: width, height: height, depth: 1)
 
-        let threadsPerGrid = MTLSize(width: texture.width, height: texture.height, depth: 1)
+        let threadsPerGrid = MTLSize(width: outputTexture.width, height: outputTexture.height, depth: 1)
 
         encoder.dispatchThreads(threadsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
 
@@ -893,6 +909,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     private let gaussianHorizontal: GaussianBlurPass
     private let gaussianVertical: GaussianBlurPass
     private let ezRenderPass: EzRenderPass
+    private let energyBloomExtract: EnergyBloomExtractPass
+    private let energyGlowComposite: EnergyGlowCompositePass
 
     private let ezUpdatePass: EzUpdatePass
     private let hUpdatePass: HFieldUpdatePass
@@ -966,9 +984,20 @@ final class Renderer: NSObject, MTKViewDelegate {
         }
 
         self.texturePass = TextureRenderPass(device: device, library: library)
-        self.ezRenderPass = EzRenderPass(device: device, library: library, texturePass: Reference(), cells: Reference(), materials: Reference())
+        self.ezRenderPass = EzRenderPass(device: device, library: library, cells: Reference(), materials: Reference())
         self.gaussianHorizontal = GaussianBlurPass(device: device, library: library, inTexture: Reference(), isHorizontal: true)
         self.gaussianVertical = GaussianBlurPass(device: device, library: library, inTexture: Reference(), isHorizontal: false)
+        self.energyBloomExtract = EnergyBloomExtractPass(
+            device: device,
+            library: library,
+            inputTexture: Reference()
+        )
+        self.energyGlowComposite = EnergyGlowCompositePass(
+            device: device,
+            library: library,
+            energyTexture: Reference(),
+            bloomTexture: Reference()
+        )
 
         self.cells = MTLSyncBuffer(device: device, values: Renderer.makeCells(nx: settings.Nx + 2 * settings.pmlThickness, ny: settings.Ny + 2 * settings.pmlThickness))
         self.colliderMaterialIndices = MTLSyncBuffer(
@@ -1180,12 +1209,17 @@ final class Renderer: NSObject, MTKViewDelegate {
     }
 
     func updateRenderTexture(view: MTKView) {
-        ezRenderPass.texturePass.value = texturePass
-        texturePass.updateTexture(for: view.drawableSize / 2)
-        gaussianHorizontal.inTexture.value = texturePass.texture
+        ezRenderPass.updateTexture(for: view.drawableSize / 2)
+        gaussianHorizontal.inTexture.value = ezRenderPass.outputTexture
         gaussianHorizontal.updateTexture()
         gaussianVertical.inTexture.value = gaussianHorizontal.outTexture
         gaussianVertical.updateTexture()
+
+        energyBloomExtract.inputTexture.value = ezRenderPass.outputTexture
+        energyBloomExtract.updateTexture()
+        energyGlowComposite.energyTexture.value = ezRenderPass.outputTexture
+        energyGlowComposite.bloomTexture.value = gaussianVertical.outTexture
+        energyGlowComposite.updateTexture()
     }
 
     func calculateSigmaMaxXY() {
@@ -1374,14 +1408,65 @@ final class Renderer: NSObject, MTKViewDelegate {
         }
 
         ezRenderPass.encodeCompute(commandBuffer, uniforms: &uniforms)
-        gaussianHorizontal.encodeCompute(commandBuffer, uniforms: &uniforms)
-        gaussianVertical.encodeCompute(commandBuffer, uniforms: &uniforms)
+
+        if visualizationMethod == .energyGlow {
+            energyBloomExtract.encodeCompute(
+                commandBuffer,
+                uniforms: &uniforms
+            )
+
+            gaussianHorizontal.blurAmount = max(
+                settings.blurAmount,
+                2.5
+            )
+
+            for iteration in 0 ..< 3 {
+                gaussianHorizontal.inTexture.value =
+                    iteration == 0
+                    ? energyBloomExtract.outputTexture
+                    : gaussianVertical.outTexture
+                gaussianHorizontal.encodeCompute(
+                    commandBuffer,
+                    uniforms: &uniforms
+                )
+
+                gaussianVertical.inTexture.value =
+                    gaussianHorizontal.outTexture
+                gaussianVertical.encodeCompute(
+                    commandBuffer,
+                    uniforms: &uniforms
+                )
+            }
+
+            energyGlowComposite.bloomTexture.value =
+                gaussianVertical.outTexture
+            energyGlowComposite.encodeCompute(
+                commandBuffer,
+                uniforms: &uniforms
+            )
+        } else {
+            gaussianHorizontal.inTexture.value =
+                ezRenderPass.outputTexture
+            gaussianHorizontal.encodeCompute(
+                commandBuffer,
+                uniforms: &uniforms
+            )
+            gaussianVertical.inTexture.value =
+                gaussianHorizontal.outTexture
+            gaussianVertical.encodeCompute(
+                commandBuffer,
+                uniforms: &uniforms
+            )
+        }
 
         guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else {
             return
         }
 
-        texturePass.texture = gaussianVertical.outTexture
+        texturePass.texture =
+            visualizationMethod == .energyGlow
+            ? energyGlowComposite.outputTexture
+            : gaussianVertical.outTexture
         texturePass.encode(commandBuffer, descriptor: descriptor, uniforms: &uniforms, renderEncoder: encoder)
 
         sourceGeometryRenderer.dispatchAll(commandBuffer: commandBuffer, descriptor: descriptor, sources: sources, uniforms: uniforms, drawableSize: view.drawableSize, encoder: encoder)
