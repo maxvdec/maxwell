@@ -30,6 +30,7 @@ struct InspectorSectionView<Content: View>: View {
 enum InspectorSelection: Equatable {
     case none
     case source(Int)
+    case collider(UUID)
 }
 
 struct Inspector: View {
@@ -42,16 +43,18 @@ struct Inspector: View {
     @State private var width: CGFloat = 300
     @Binding var settings: SimulationSettings
     @Binding var renderer: Renderer
+    let editor: EditorState
     @Binding var selection: InspectorSelection
     
     @State private var desiredCellsPerWavelength: Int = 20
     
-    private var isSourceSelected: Bool {
-        if case .source = selection {
+    private var isEditableSelection: Bool {
+        switch selection {
+        case .source, .collider:
             return true
+        case .none:
+            return false
         }
-
-        return false
     }
 
     var body: some View {
@@ -78,13 +81,17 @@ struct Inspector: View {
                             .onTapGesture {
                                 beginNameEdit()
                             }
-                            .cursor(isSourceSelected ? .iBeam : .arrow)
+                            .cursor(isEditableSelection ? .iBeam : .arrow)
                     }
                 }
                 Divider()
                 if case let .source(i) = selection,
                    renderer.getSource(i: i) != nil {
                     sourceSection
+                }
+                if case let .collider(id) = selection,
+                   editor.collider(id: id) != nil {
+                    colliderSection(id: id)
                 }
                 gridSection
                 environmentSection
@@ -114,7 +121,7 @@ struct Inspector: View {
     }
     
     private func beginNameEdit() {
-        guard case .source = selection else {
+        guard isEditableSelection else {
             return
         }
 
@@ -127,11 +134,6 @@ struct Inspector: View {
     }
     
     private func commitNameEdit() {
-        guard case let .source(i) = selection else {
-            cancelNameEdit()
-            return
-        }
-
         let name =
             editingName
                 .trimmingCharacters(
@@ -143,10 +145,24 @@ struct Inspector: View {
             return
         }
 
-        renderer.renameSource(
-            i: i,
-            name: name
-        )
+        switch selection {
+        case let .source(i):
+            renderer.renameSource(
+                i: i,
+                name: name
+            )
+        case let .collider(id):
+            guard var collider = editor.collider(id: id) else {
+                cancelNameEdit()
+                return
+            }
+
+            collider.name = name
+            editor.updateCollider(collider)
+        case .none:
+            cancelNameEdit()
+            return
+        }
 
         elementName = name
 
@@ -434,6 +450,8 @@ struct Inspector: View {
             return -1
         case let .source(int):
             return int
+        case .collider:
+            return -1
         }
     }
     
@@ -448,6 +466,10 @@ struct Inspector: View {
 
             elementName =
                 name ?? "Source \(i)"
+
+        case let .collider(id):
+            elementName =
+                editor.collider(id: id)?.name ?? "Collider"
         }
 
         editingName = elementName
@@ -503,6 +525,206 @@ struct Inspector: View {
                     keyPath,
                     value: set(newValue)
                 )
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func colliderSection(id: UUID) -> some View {
+        let _ = renderer.materialsRevision
+
+        if let collider = editor.collider(id: id) {
+            InspectorSectionView(title: "Collider") {
+                HStack {
+                    Text("Shape")
+                    Spacer()
+                    Text(collider.geometry.name)
+                        .foregroundStyle(.secondary)
+                }
+
+                Picker(
+                    "Material",
+                    selection: colliderMaterialBinding(id: id)
+                ) {
+                    ForEach(renderer.materialOptions, id: \.index) { option in
+                        Text(option.name)
+                            .tag(option.index)
+                    }
+                }
+
+                materialEditor(index: collider.materialIndex)
+
+                Button {
+                    selection = .none
+                    editor.removeCollider(id: id)
+                } label: {
+                    Text("Remove Collider")
+                        .frame(maxWidth: .infinity)
+                        .padding(10)
+                        .contentShape(Rectangle())
+                }
+                .cursor(.pointingHand)
+                .buttonStyle(.plain)
+                .foregroundStyle(Color(red: 0.35, green: 0, blue: 0))
+                .glassEffect(.regular.tint(.red))
+                .focusable(false)
+
+                Divider()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func materialEditor(index: Int) -> some View {
+        if renderer.getMaterial(i: index) != nil {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Material")
+                        .font(.headline)
+
+                    Spacer()
+
+                    Button {
+                        createMaterial()
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .buttonStyle(.glass)
+                    .focusable(false)
+                    .help("Create and assign a reusable material")
+
+                    Button {
+                        deleteMaterial(index: index)
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.glass)
+                    .focusable(false)
+                    .disabled(index == 0)
+                    .help(
+                        index == 0
+                            ? "Vacuum is the fallback material"
+                            : "Delete this material"
+                    )
+                }
+
+                TextField(
+                    "Material name",
+                    text: materialNameBinding(index: index)
+                )
+                .textFieldStyle(.roundedBorder)
+
+                FloatField(
+                    "Relative Permittivity",
+                    value: materialBinding(
+                        index: index,
+                        keyPath: \.epsilonR,
+                        default: 1
+                    ),
+                    unit: "εr"
+                )
+
+                FloatField(
+                    "Relative Permeability",
+                    value: materialBinding(
+                        index: index,
+                        keyPath: \.muR,
+                        default: 1
+                    ),
+                    unit: "μr"
+                )
+
+                FloatField(
+                    "Conductivity",
+                    value: materialBinding(
+                        index: index,
+                        keyPath: \.sigma,
+                        default: 0
+                    ),
+                    unit: "S/m"
+                )
+
+                Text("Materials are reusable across colliders and affect wave propagation immediately.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(12)
+            .background(.regularMaterial, in: .rect(cornerRadius: 16))
+        }
+    }
+
+    private func colliderMaterialBinding(id: UUID) -> Binding<Int> {
+        Binding(
+            get: {
+                editor.collider(id: id)?.materialIndex ?? 0
+            },
+            set: { materialIndex in
+                guard var collider = editor.collider(id: id) else {
+                    return
+                }
+
+                collider.materialIndex = materialIndex
+                editor.updateCollider(collider)
+            }
+        )
+    }
+
+    private func createMaterial() {
+        let index = renderer.addMaterial(
+            EMMaterial(
+                epsilonR: 2.25,
+                muR: 1,
+                sigma: 0
+            ),
+            name: "Material \(renderer.materialCount + 1)"
+        )
+
+        guard case let .collider(id) = selection,
+              var collider = editor.collider(id: id)
+        else {
+            return
+        }
+
+        collider.materialIndex = index
+        editor.updateCollider(collider)
+    }
+
+    private func deleteMaterial(index: Int) {
+        guard index > 0 else {
+            return
+        }
+
+        renderer.removeMaterial(i: index)
+        editor.removeMaterialReferences(at: index)
+    }
+
+    private func materialNameBinding(index: Int) -> Binding<String> {
+        Binding(
+            get: {
+                renderer.getNameForMaterial(i: index) ?? "Material"
+            },
+            set: { name in
+                renderer.renameMaterial(i: index, name: name)
+            }
+        )
+    }
+
+    private func materialBinding(
+        index: Int,
+        keyPath: WritableKeyPath<EMMaterial, Float>,
+        default defaultValue: Float
+    ) -> Binding<Float> {
+        Binding(
+            get: {
+                renderer.getMaterial(i: index)?[keyPath: keyPath] ?? defaultValue
+            },
+            set: { value in
+                guard var material = renderer.getMaterial(i: index) else {
+                    return
+                }
+
+                material[keyPath: keyPath] = value
+                renderer.updateMaterial(i: index, material: material)
             }
         )
     }
@@ -573,7 +795,12 @@ struct Inspector: View {
 }
 
 #Preview {
-    Inspector(settings: .constant(.init()), renderer: .constant(.init(settings: .init())), selection: .constant(.source(0)))
+    Inspector(
+        settings: .constant(.init()),
+        renderer: .constant(.init(settings: .init())),
+        editor: .init(),
+        selection: .constant(.source(0))
+    )
         .padding()
         .preferredColorScheme(.dark)
 }

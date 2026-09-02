@@ -191,6 +191,9 @@ struct MetalView: NSViewRepresentable {
                 type: .beam,
                 at: gridPosition
             )
+
+        case .placeCollider:
+            return
         }
     }
 
@@ -372,6 +375,43 @@ class HFieldUpdatePass: ComputePass {
 
         encoder.dispatchThreads(threadsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
 
+        encoder.endEncoding()
+    }
+}
+
+class ColliderMaterialPass {
+    let pipeline: MTLComputePipelineState
+
+    init(device: MTLDevice, library: MTLLibrary) {
+        let function = library.makeFunction(name: "applyColliderMaterials")!
+        pipeline = try! device.makeComputePipelineState(function: function)
+    }
+
+    func encodeCompute(
+        _ commandBuffer: MTLCommandBuffer,
+        cells: MTLSyncBuffer<GridCell>,
+        materialIndices: MTLSyncBuffer<Int32>
+    ) {
+        guard let encoder = commandBuffer.makeComputeCommandEncoder() else {
+            return
+        }
+
+        encoder.label = "Apply Collider Materials"
+        encoder.setComputePipelineState(pipeline)
+        cells.setAtEncoder(encoder, index: 0)
+        materialIndices.setAtEncoder(encoder, index: 1)
+
+        var count = UInt32(materialIndices.count)
+        encoder.setBytes(
+            &count,
+            length: MemoryLayout<UInt32>.stride,
+            index: 2
+        )
+
+        let width = pipeline.threadExecutionWidth
+        let threadsPerGroup = MTLSize(width: width, height: 1, depth: 1)
+        let threads = MTLSize(width: materialIndices.count, height: 1, depth: 1)
+        encoder.dispatchThreads(threads, threadsPerThreadgroup: threadsPerGroup)
         encoder.endEncoding()
     }
 }
@@ -848,14 +888,16 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     private let ezUpdatePass: EzUpdatePass
     private let hUpdatePass: HFieldUpdatePass
+    private let colliderMaterialPass: ColliderMaterialPass
 
     private let sourceGeometryRenderer: SourceGeometryRenderer
     private let sourceOverlayRenderer: SourceOverlayRenderer
 
     private var cells: MTLSyncBuffer<GridCell>
+    private var colliderMaterialIndices: MTLSyncBuffer<Int32>
     private var sources: [ElectricSource] = []
     private var materials: [EMMaterial] = [EMMaterial(epsilonR: 1.0, muR: 1.0, sigma: 0.0)] // Vaccum material
-    private var materialNames: [String] = ["Vaccum"]
+    private var materialNames: [String] = ["Vacuum"]
     private var sourceNames: [String] = []
 
     private var uniforms: Uniforms
@@ -864,6 +906,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     private var stepSingle: Bool = false
 
     var sourcesRevision = 0
+    var materialsRevision = 0
 
     var drawableSize: CGSize = .zero
 
@@ -877,6 +920,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     private let ez3DResolution = 64
 
     private var frameNumber = 0
+    private var appliedColliderRevision = -1
+    private var shouldApplyColliderMaterials = false
 
     var effectivePMLThickness: Int {
         settings.reflectWalls ? 0 : settings.pmlThickness
@@ -916,9 +961,18 @@ final class Renderer: NSObject, MTKViewDelegate {
         self.gaussianVertical = GaussianBlurPass(device: device, library: library, inTexture: Reference(), isHorizontal: false)
 
         self.cells = MTLSyncBuffer(device: device, values: Renderer.makeCells(nx: settings.Nx + 2 * settings.pmlThickness, ny: settings.Ny + 2 * settings.pmlThickness))
+        self.colliderMaterialIndices = MTLSyncBuffer(
+            device: device,
+            values: Array(
+                repeating: 0,
+                count: (settings.Nx + 2 * settings.pmlThickness) *
+                    (settings.Ny + 2 * settings.pmlThickness)
+            )
+        )
 
         self.ezUpdatePass = EzUpdatePass(device: device, library: library, cells: Reference(), sources: Reference(), materials: Reference())
         self.hUpdatePass = HFieldUpdatePass(device: device, library: library, cells: Reference(), materials: Reference())
+        self.colliderMaterialPass = ColliderMaterialPass(device: device, library: library)
         self.uniforms = Uniforms()
 
         self.sourceGeometryRenderer = SourceGeometryRenderer(device: device, library: library)
@@ -937,7 +991,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         ]
         
         materialNames = [
-            "Vaccum",
+            "Vacuum",
             "Air",
             "Polytetrafluoroethylene (PTFE)",
             "Glass",
@@ -1045,14 +1099,18 @@ final class Renderer: NSObject, MTKViewDelegate {
         materials.append(material)
         materialNames.append(name)
 
-        sourcesRevision += 1
+        materialsRevision += 1
 
-        return sources.count - 1
+        return materials.count - 1
     }
 
     func updateMaterial(i: Int, material: EMMaterial) {
+        guard materials.indices.contains(i) else {
+            return
+        }
+
         materials[i] = material
-        sourcesRevision += 1
+        materialsRevision += 1
     }
 
     func renameMaterial(
@@ -1064,11 +1122,13 @@ final class Renderer: NSObject, MTKViewDelegate {
         }
 
         materialNames[i] = name
-        sourcesRevision += 1
+        materialsRevision += 1
     }
 
     func removeMaterial(i: Int) {
-        guard materials.indices.contains(i) else {
+        guard i > 0,
+              materials.indices.contains(i)
+        else {
             return
         }
 
@@ -1078,7 +1138,7 @@ final class Renderer: NSObject, MTKViewDelegate {
             materialNames.remove(at: i)
         }
 
-        sourcesRevision += 1
+        materialsRevision += 1
     }
 
     func getNameForMaterial(i: Int) -> String? {
@@ -1095,6 +1155,16 @@ final class Renderer: NSObject, MTKViewDelegate {
         }
 
         return materials[i]
+    }
+
+    var materialCount: Int {
+        materials.count
+    }
+
+    var materialOptions: [(index: Int, name: String)] {
+        materialNames.enumerated().map {
+            (index: $0.offset, name: $0.element)
+        }
     }
 
     func updateRenderTexture(view: MTKView) {
@@ -1154,6 +1224,55 @@ final class Renderer: NSObject, MTKViewDelegate {
         settings.paused = true
 
         cells.assign(new: Renderer.makeCells(nx: makeSimCount().0, ny: makeSimCount().1))
+        appliedColliderRevision = -1
+    }
+
+    func rasterizeColliderMaterialsIfNeeded() {
+        guard let editor,
+              appliedColliderRevision != editor.colliderRevision
+        else {
+            return
+        }
+
+        let colliders = editor.colliders
+        let nx = settings.Nx
+        let ny = settings.Ny
+        let simNx = makeSimCount().0
+        let pml = effectivePMLThickness
+        let materialCount = materials.count
+
+        var indices = Array(
+            repeating: Int32(0),
+            count: makeSimCount().0 * makeSimCount().1
+        )
+
+        if nx > 0,
+           ny > 0 {
+            for y in 0 ..< ny {
+                for x in 0 ..< nx {
+                    let point = NormalizedPoint(
+                        x: (Double(x) + 0.5) / Double(nx),
+                        y: (Double(y) + 0.5) / Double(ny)
+                    )
+
+                    var selectedMaterial = 0
+
+                    for collider in colliders where collider.geometry.contains(point) {
+                        if collider.materialIndex >= 0,
+                           collider.materialIndex < materialCount {
+                            selectedMaterial = collider.materialIndex
+                        }
+                    }
+
+                    let index = (y + pml) * simNx + x + pml
+                    indices[index] = Int32(selectedMaterial)
+                }
+            }
+        }
+
+        colliderMaterialIndices.assign(new: indices)
+        appliedColliderRevision = editor.colliderRevision
+        shouldApplyColliderMaterials = true
     }
 
     func checkRemakeCells() {
@@ -1217,8 +1336,18 @@ final class Renderer: NSObject, MTKViewDelegate {
         }
 
         checkRemakeCells()
+        rasterizeColliderMaterialsIfNeeded()
         updateRenderTexture(view: view)
         updateUniforms(view: view)
+
+        if shouldApplyColliderMaterials {
+            colliderMaterialPass.encodeCompute(
+                commandBuffer,
+                cells: cells,
+                materialIndices: colliderMaterialIndices
+            )
+            shouldApplyColliderMaterials = false
+        }
 
         if !settings.paused {
             stepFrame(commandBuffer: commandBuffer)

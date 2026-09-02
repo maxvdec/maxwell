@@ -82,13 +82,13 @@ struct BottomInspectorView: View {
 
     var body: some View {
         VStack {
-            if case .none = selection {
-                Text("No source is selected")
-                    .foregroundStyle(.secondary)
-            } else {
+            if case .source = selection {
                 header
 
                 sourceChart
+            } else {
+                Text("No source is selected")
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(30)
@@ -321,6 +321,9 @@ struct BottomInspectorView: View {
 
         case .source(let index):
             return index
+
+        case .collider:
+            return -1
         }
     }
 }

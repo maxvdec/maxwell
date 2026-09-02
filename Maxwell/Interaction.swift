@@ -15,10 +15,11 @@ enum Tool: Equatable {
     case placePoint
     case placeLine
     case placeBeam
+    case placeCollider(ColliderCreationTool)
 
     var sourceType: SourceType? {
         switch self {
-        case .pointer:
+        case .pointer, .placeCollider:
             nil
         case .placePoint:
             .point
@@ -32,6 +33,14 @@ enum Tool: Equatable {
     var isPlacementTool: Bool {
         sourceType != nil
     }
+
+    var isColliderTool: Bool {
+        if case .placeCollider = self {
+            return true
+        }
+
+        return false
+    }
 }
 
 @Observable
@@ -40,9 +49,50 @@ final class EditorState {
     var hoveredGridPosition: SIMD2<UInt32>?
 
     var hoveredSource: Int?
+    var hoveredCollider: UUID?
 
     var selection: InspectorSelection = .none
     var visualizationMode: VisualizationMode = .field2D
+
+    var colliders: [FieldCollider] = []
+    var colliderRevision = 0
+
+    func addCollider(_ collider: FieldCollider) {
+        colliders.append(collider)
+        colliderRevision += 1
+    }
+
+    func updateCollider(_ collider: FieldCollider) {
+        guard let index = colliders.firstIndex(where: {
+            $0.id == collider.id
+        }) else {
+            return
+        }
+
+        colliders[index] = collider
+        colliderRevision += 1
+    }
+
+    func removeCollider(id: UUID) {
+        colliders.removeAll { $0.id == id }
+        colliderRevision += 1
+    }
+
+    func collider(id: UUID) -> FieldCollider? {
+        colliders.first { $0.id == id }
+    }
+
+    func removeMaterialReferences(at index: Int) {
+        for colliderIndex in colliders.indices {
+            if colliders[colliderIndex].materialIndex == index {
+                colliders[colliderIndex].materialIndex = 0
+            } else if colliders[colliderIndex].materialIndex > index {
+                colliders[colliderIndex].materialIndex -= 1
+            }
+        }
+
+        colliderRevision += 1
+    }
 }
 
 

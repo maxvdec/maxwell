@@ -76,6 +76,17 @@ struct ContentView: View {
             )
             .opacity(editor.visualizationMode == .field2D ? 1 : 0)
             .allowsHitTesting(editor.visualizationMode == .field2D)
+
+            if editor.visualizationMode == .field2D {
+                ColliderCanvasOverlay(
+                    editor: editor,
+                    renderer: renderer
+                )
+                .allowsHitTesting(
+                    editor.currentTool == .pointer ||
+                        editor.currentTool.isColliderTool
+                )
+            }
             
             if editor.visualizationMode == .field3D {
                 Ez3DVisualizationView(renderer: renderer)
@@ -85,6 +96,9 @@ struct ContentView: View {
         .onKeyPress(.space) {
             settings.paused.toggle()
             return .handled
+        }
+        .onExitCommand {
+            editor.currentTool = .pointer
         }
         .overlay {
             ZStack {
@@ -118,6 +132,7 @@ struct ContentView: View {
                     Inspector(
                         settings: $settings,
                         renderer: $renderer,
+                        editor: editor,
                         selection: Binding(
                             get: { editor.selection },
                             set: { editor.selection = $0 }
