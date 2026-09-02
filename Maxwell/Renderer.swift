@@ -246,12 +246,14 @@ class EzRenderPass: ComputePass {
     let pipeline: MTLComputePipelineState
     var texturePass: Reference<TextureRenderPass>
     var cells: Reference<MTLSyncBuffer<GridCell>>
+    var materials: Reference<[EMMaterial]>
 
-    init(device: MTLDevice, library: MTLLibrary, texturePass: Reference<TextureRenderPass>, cells: Reference<MTLSyncBuffer<GridCell>>) {
+    init(device: MTLDevice, library: MTLLibrary, texturePass: Reference<TextureRenderPass>, cells: Reference<MTLSyncBuffer<GridCell>>, materials: Reference<[EMMaterial]>) {
         self.texturePass = texturePass
         let function = library.makeFunction(name: "renderEz")!
         self.pipeline = try! device.makeComputePipelineState(function: function)
         self.cells = cells
+        self.materials = materials
     }
 
     func encodeCompute(_ commandBuffer: any MTLCommandBuffer, uniforms: inout Uniforms) {
@@ -269,6 +271,9 @@ class EzRenderPass: ComputePass {
 
         cells.unwrap().setAtEncoder(encoder, index: 0)
         encoder.setBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
+        materials.unwrap().withUnsafeBytes { bytes in
+            encoder.setBytes(bytes.baseAddress!, length: bytes.count, index: 2)
+        }
 
         let width = pipeline.threadExecutionWidth
 
@@ -961,7 +966,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         }
 
         self.texturePass = TextureRenderPass(device: device, library: library)
-        self.ezRenderPass = EzRenderPass(device: device, library: library, texturePass: Reference(), cells: Reference())
+        self.ezRenderPass = EzRenderPass(device: device, library: library, texturePass: Reference(), cells: Reference(), materials: Reference())
         self.gaussianHorizontal = GaussianBlurPass(device: device, library: library, inTexture: Reference(), isHorizontal: true)
         self.gaussianVertical = GaussianBlurPass(device: device, library: library, inTexture: Reference(), isHorizontal: false)
 
@@ -1196,6 +1201,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     func updateUniforms(view: MTKView) {
         ezRenderPass.cells.value = cells
+        ezRenderPass.materials.value = materials
         ezUpdatePass.cells.value = cells
         ezUpdatePass.sources.value = sources
         ezUpdatePass.materials.value = materials

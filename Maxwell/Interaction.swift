@@ -116,6 +116,7 @@ enum VisualizationMode: Int32, CaseIterable {
     case field3D = -1
     case electricMagnitude = 1
     case magneticMagnitude = 2
+    case electricDensity = 3
 
     var name: String {
         switch self {
@@ -127,6 +128,8 @@ enum VisualizationMode: Int32, CaseIterable {
             "Electric Magnitude"
         case .magneticMagnitude:
             "Magnetic Magnitude"
+        case .electricDensity:
+            "Electric Energy Density"
         }
     }
 
@@ -140,6 +143,8 @@ enum VisualizationMode: Int32, CaseIterable {
             "bolt.fill"
         case .magneticMagnitude:
             "wave.3.left"
+        case .electricDensity:
+            "graph.2d"
         }
     }
     
@@ -153,6 +158,8 @@ enum VisualizationMode: Int32, CaseIterable {
                 .yellow.opacity(0.7)
         case .magneticMagnitude:
                 .green.opacity(0.7)
+        case .electricDensity:
+                .orange.opacity(0.7)
         }
     }
 }

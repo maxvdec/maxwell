@@ -13,12 +13,14 @@ enum VisualizationMode : int {
     MODE_EZ = 0,
     MODE_MAGNITUDE = 1,
     MODE_MAGNETIC_MAGNITUDE = 2,
+    MODE_ELECTRIC_DENSITY = 3,
 };
 
 kernel void renderEz(
     texture2d<float, access::write> outTexture [[texture(0)]],
     device GridCell* cells [[buffer(0)]],
     constant Uniforms& uniforms [[buffer(1)]],
+    constant EMMaterial* materials [[buffer(2)]],
     uint2 id [[thread_position_in_grid]]
 ) {
     if (id.x >= outTexture.get_width() ||
@@ -61,6 +63,14 @@ kernel void renderEz(
     float2 hDown = cells[indexDown].H;
     float2 hLeft = cells[indexLeft].H;
     
+    int materialIndex = cells[index].materialIndex;
+    if (materialIndex >= uniforms.materialCount) {
+        outTexture.write(float4(1.0, 0.0, 1.0, 1.0), id);
+        return;
+    }
+    
+    EMMaterial mat = materials[cells[index].materialIndex];
+    
     if (uniforms.visualizationMode == MODE_EZ) {
         float x = ez * uniforms.visualizationScale;
 
@@ -101,6 +111,20 @@ kernel void renderEz(
         v = clamp(v, 0.0, 1.0);
         
         outTexture.write(float4(v, v, v, 1.0), id);
+    } else if (uniforms.visualizationMode == MODE_ELECTRIC_DENSITY) {
+        const float epsilon0 = 8.854187817e-12f;
+        float epsilon = epsilon0 * mat.epsilonR;
+
+        float electricEnergy = 0.5f * epsilon * ez * ez;
+
+        // Display gain, not physical scaling
+        float x = electricEnergy * 1e12f uniforms.visualizationScale;
+
+        float v = log(1.0f + x);
+        v /= log(1.0f + 10.0f);
+        v = clamp(v, 0.0f, 1.0f);
+
+        outTexture.write(float4(v, v, v, 1.0f), id);
     } else {
         outTexture.write(float4(1.0, 0.0, 1.0, 1.0), id);
     }
