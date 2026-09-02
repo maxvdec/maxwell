@@ -213,6 +213,85 @@ class ImageOverlayRenderPass: RenderPass {
     }
 }
 
+class RectangleOverlayRenderPass {
+    let renderPipeline: MTLRenderPipelineState
+    let device: MTLDevice
+    var vertices: [SimpleOverlayVertex] = []
+
+    init(
+        device: MTLDevice,
+        library: MTLLibrary
+    ) {
+        self.device = device
+
+        self.renderPipeline = try! createRenderPipeline(
+            vertex: "rectangleOverlayVertex",
+            fragment: "rectangleOverlayFragment",
+            device: device
+        )
+    }
+
+    func dispatchWithVertices(
+        _ commandBuffer: any MTLCommandBuffer,
+        descriptor: MTLRenderPassDescriptor,
+        uniforms: inout LineGeometryUniforms,
+        vertices: [SimpleOverlayVertex],
+        opacity: Float = 1.0,
+        encoder: MTLRenderCommandEncoder
+    ) {
+        self.vertices = vertices
+
+        encode(
+            commandBuffer,
+            descriptor: descriptor,
+            uniforms: &uniforms,
+            opacity: opacity,
+            renderEncoder: encoder
+        )
+    }
+
+    private func encode(
+        _ commandBuffer: any MTLCommandBuffer,
+        descriptor: MTLRenderPassDescriptor,
+        uniforms: inout LineGeometryUniforms,
+        opacity: Float,
+        renderEncoder encoder: MTLRenderCommandEncoder
+    ) {
+        encoder.setRenderPipelineState(
+            renderPipeline
+        )
+
+        encoder.setVertexBytes(
+            vertices,
+            length:
+            MemoryLayout<SimpleOverlayVertex>.stride
+                * vertices.count,
+            index: 0
+        )
+
+        encoder.setFragmentBytes(
+            &uniforms,
+            length: MemoryLayout<LineGeometryUniforms>.stride,
+            index: 0
+        )
+        
+        encoder.drawPrimitives(
+            type: .triangle,
+            vertexStart: 0,
+            vertexCount: 6
+        )
+    }
+
+    func encode(
+        _ commandBuffer: any MTLCommandBuffer,
+        descriptor: MTLRenderPassDescriptor,
+        uniforms: inout LineGeometryUniforms,
+        renderEncoder encoder: MTLRenderCommandEncoder
+    ) {
+        encode(commandBuffer, descriptor: descriptor, uniforms: &uniforms, opacity: 1.0, renderEncoder: encoder)
+    }
+}
+
 func gaussianWeights(radius: Int, sigma: Float) -> [Float] {
     var weights = [Float]()
 

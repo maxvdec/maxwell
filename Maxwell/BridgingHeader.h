@@ -19,7 +19,7 @@ struct ElectricSource {
     unsigned int x; // cells
     unsigned int y; // cells
     
-    unsigned int width; // cells
+    unsigned int length; // cells
     float rotation; // degrees
     
     float frequency; // GHz
@@ -53,6 +53,12 @@ struct Uniforms {
     
     float sigmaMaxX;
     float sigmaMaxY;
+};
+
+struct LineGeometryUniforms {
+    simd_float2 sizePx;
+    float borderPx;
+    simd_float4 borderColor;
 };
 
 

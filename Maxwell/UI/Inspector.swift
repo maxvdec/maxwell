@@ -250,7 +250,7 @@ struct Inspector: View {
                 UIntField("Y:", value: sourceBinding(\.y, default: 0), unit: "")
             }
             if getSourceType() == .line {
-                UIntField("Width", value: sourceBinding(\.width, default: 0), unit: "")
+                UIntField("Width", value: sourceBinding(\.length, default: 0), unit: "")
                 FloatField("Rotation", value: sourceBinding(\.rotation, default: 0), unit: "°")
             }
             

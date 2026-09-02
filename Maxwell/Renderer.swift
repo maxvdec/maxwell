@@ -216,6 +216,10 @@ struct MetalView: NSViewRepresentable {
 
         source.amplitude = 1.0
         source.phase = 0.0
+        
+        source.gaussianWidth = 1.0
+        source.length = safelyCheckUInt(renderer.settings.Nx / 2)
+        source.rotation = 0.0
 
         let index =
             renderer.addSource(
@@ -623,6 +627,197 @@ class SourceOverlayRenderer {
     }
 }
 
+class SourceGeometryRenderer {
+    let pass: RectangleOverlayRenderPass
+    
+    init(
+        device: MTLDevice,
+        library: MTLLibrary
+    ) {
+        self.pass =
+            RectangleOverlayRenderPass(
+                device: device,
+                library: library
+            )
+    }
+
+    func dispatchAll(
+        commandBuffer: MTLCommandBuffer,
+        descriptor: MTLRenderPassDescriptor,
+        sources: [ElectricSource],
+        uniforms: Uniforms,
+        drawableSize: CGSize,
+        encoder: MTLRenderCommandEncoder
+    ) {
+        for source in sources {
+            dispatchSource(
+                source,
+                commandBuffer: commandBuffer,
+                descriptor: descriptor,
+                drawableSize: drawableSize,
+                uniforms: uniforms,
+                encoder: encoder,
+                opacity: 1.0
+            )
+        }
+    }
+
+    private func dispatchSource(
+        _ source: ElectricSource,
+        commandBuffer: MTLCommandBuffer,
+        descriptor: MTLRenderPassDescriptor,
+        drawableSize: CGSize,
+        uniforms: Uniforms,
+        encoder: MTLRenderCommandEncoder,
+        opacity: Float
+    ) {
+        guard drawableSize.width > 0,
+              drawableSize.height > 0
+        else {
+            return
+        }
+
+        let badgeSize: Float = 64
+
+        let visibleNx =
+            uniforms.Nx
+                - 2 * uniforms.pmlThickness
+
+        let visibleNy =
+            uniforms.Ny
+                - 2 * uniforms.pmlThickness
+
+        guard visibleNx > 1,
+              visibleNy > 1
+        else {
+            return
+        }
+
+        let u =
+            Float(source.x)
+                / Float(visibleNx - 1)
+
+        let v =
+            Float(source.y)
+                / Float(visibleNy - 1)
+        
+        let center = SIMD2<Float>(
+            u * 2 - 1,
+            1 - v * 2
+        )
+        
+        let cellWidthNDC =
+            2.0 / Float(visibleNx)
+        
+        let angle =
+            source.rotation * .pi / 180
+
+        let direction = SIMD2<Float>(
+            cos(angle),
+            -sin(angle)
+        )
+        
+        let normal = SIMD2<Float>(
+            -direction.y,
+            direction.x
+        )
+        
+        let halfLength =
+            Float(source.length) * 0.5
+        
+        let cellSizeNDC = SIMD2<Float>(
+            2.0 / Float(visibleNx),
+            2.0 / Float(visibleNy)
+        )
+        
+        let along =
+            direction *
+            SIMD2<Float>(
+                halfLength * cellSizeNDC.x,
+                halfLength * cellSizeNDC.y
+            )
+        
+        let thicknessCells: Float = 2
+
+        let perpendicular = SIMD2<Float>(
+            normal.x * thicknessCells * cellSizeNDC.x,
+            normal.y * thicknessCells * cellSizeNDC.y
+        )
+        
+        let p0 = center - along - perpendicular
+        let p1 = center + along - perpendicular
+        let p2 = center + along + perpendicular
+        let p3 = center - along + perpendicular
+
+
+        let vertices: [SimpleOverlayVertex] = [
+            .init(
+                position: p0,
+                uv: [0, 0]
+            ),
+
+            .init(
+                position: p1,
+                uv: [1, 0]
+            ),
+
+            .init(
+                position: p2,
+                uv: [1, 1]
+            ),
+
+            .init(
+                position: p0,
+                uv: [0, 0]
+            ),
+
+            .init(
+                position: p2,
+                uv: [1, 1]
+            ),
+
+            .init(
+                position: p3,
+                uv: [0, 1]
+            )
+        ]
+        
+        let cellSizePx = SIMD2<Float>(
+            Float(drawableSize.width) / Float(visibleNx),
+            Float(drawableSize.height) / Float(visibleNy)
+        )
+        
+        let lengthPx =
+            Float(source.length) * cellSizePx.x
+
+        let thicknessPx: Float = 14
+        
+        var geometryUniforms = LineGeometryUniforms(
+            sizePx: SIMD2<Float>(
+                lengthPx,
+                thicknessPx
+            ),
+            borderPx: 2.0,
+            borderColor: SIMD4<Float>(
+                1.0,
+                0.23,
+                0.19,
+                1.0
+            )
+        )
+
+        pass
+            .dispatchWithVertices(
+                commandBuffer,
+                descriptor: descriptor,
+                uniforms: &geometryUniforms,
+                vertices: vertices,
+                opacity: opacity,
+                encoder: encoder
+            )
+    }
+}
+
 @Observable
 final class Renderer: NSObject, MTKViewDelegate {
     let device: MTLDevice
@@ -639,6 +834,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     private let ezUpdatePass: EzUpdatePass
     private let hUpdatePass: HFieldUpdatePass
 
+    private let sourceGeometryRenderer: SourceGeometryRenderer
     private let sourceOverlayRenderer: SourceOverlayRenderer
 
     private var cells: MTLSyncBuffer<GridCell>
@@ -701,6 +897,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         self.hUpdatePass = HFieldUpdatePass(device: device, library: library, cells: Reference())
         self.uniforms = Uniforms()
 
+        self.sourceGeometryRenderer = SourceGeometryRenderer(device: device, library: library)
         self.sourceOverlayRenderer = SourceOverlayRenderer(device: device, library: library)
        
     }
@@ -857,7 +1054,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         settings.height = gridConfig.height
         
         if !didCreateDefaultSource {
-            self.sources = [ElectricSource(x: safelyCheckUInt(settings.Nx / 2), y: safelyCheckUInt(settings.Ny / 2), width: 0, rotation: 0,
+            self.sources = [ElectricSource(x: safelyCheckUInt(settings.Nx / 2), y: safelyCheckUInt(settings.Ny / 2), length: 0, rotation: 0,
                                            frequency: calculateFrequency(cellsPerWavelength: 20.0, settings: settings),
                                            amplitude: 1.0,
                                            phase: 0.0,
@@ -922,6 +1119,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         texturePass.texture = gaussianVertical.outTexture
         texturePass.encode(commandBuffer, descriptor: descriptor, uniforms: &uniforms, renderEncoder: encoder)
 
+        sourceGeometryRenderer.dispatchAll(commandBuffer: commandBuffer, descriptor: descriptor, sources: sources, uniforms: uniforms, drawableSize: view.drawableSize, encoder: encoder)
         sourceOverlayRenderer.dispatchAll(commandBuffer: commandBuffer, descriptor: descriptor, uniforms: &uniforms, sources: sources, drawableSize: view.drawableSize, encoder: encoder)
         
         if let editor,

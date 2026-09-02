@@ -6,6 +6,7 @@
 //
 
 #include <metal_stdlib>
+#include "../BridgingHeader.h"
 using namespace metal;
 
 struct FullscreenVertexOut {
@@ -185,4 +186,44 @@ fragment float4 imageOverlayFragment(
     color.a *= opacity;
 
     return color;
+}
+
+vertex ImageOverlayOut rectangleOverlayVertex(
+    const device ImageOverlayVertex* vertices [[buffer(0)]],
+    uint vertexID [[vertex_id]]
+) {
+    ImageOverlayOut out;
+
+    out.position = float4(
+        vertices[vertexID].position,
+        0.0,
+        1.0
+    );
+
+    out.uv = vertices[vertexID].uv;
+
+    return out;
+}
+
+fragment float4 rectangleOverlayFragment(
+    ImageOverlayOut in [[stage_in]],
+    constant LineGeometryUniforms& u [[buffer(0)]]
+) {
+    float2 pixelPos = in.uv * u.sizePx;
+
+    float distanceToLeft   = pixelPos.x;
+    float distanceToRight  = u.sizePx.x - pixelPos.x;
+    float distanceToTop    = pixelPos.y;
+    float distanceToBottom = u.sizePx.y - pixelPos.y;
+
+    float distanceToEdge = min(
+        min(distanceToLeft, distanceToRight),
+        min(distanceToTop, distanceToBottom)
+    );
+
+    if (distanceToEdge <= u.borderPx) {
+        return u.borderColor;
+    }
+
+    return float4(0.0, 0.0, 0.0, 1.0);
 }

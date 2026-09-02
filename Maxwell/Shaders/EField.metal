@@ -81,7 +81,7 @@ float sourceContribution(uint2 id, constant ElectricSource* sources, constant Un
                                       );
             
             float halfWidth =
-            float(source.width) * 0.5f;
+            float(source.length) * 0.5f;
             
             float2 a =
             center - direction * halfWidth;
