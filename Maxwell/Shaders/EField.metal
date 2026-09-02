@@ -22,37 +22,101 @@ enum SourceType : uint {
     TYPE_POINT = 1,
     TYPE_BEAM = 2,
 };
+    
+float valueForSource(ElectricSource source, constant Uniforms& uniforms) {
+    if (source.form == FORM_SINE) {
+        float frequencyHz = source.frequency * 1e9;
+        return source.amplitude * sin(2.0 * M_PI_F * frequencyHz * uniforms.t + source.phase);
+    } else if (source.form == FORM_PULSE) {
+        float frequencyHz = source.frequency * 1e9;
+        if (uniforms.t < (source.duration / 1e9)) {
+            return source.amplitude * sin(2.0 * M_PI_F * frequencyHz * uniforms.t + source.phase);
+        }
+    } else if (source.form == FORM_GAUSSIAN) {
+        float sigma = (source.gaussianWidth / 1e9) / 2.35482;
+        float t0 = 4 * sigma;
+        return source.amplitude * exp(-1 * (pow(uniforms.t - t0, 2) / (2 * pow(sigma, 2))));
+    } else if (source.form == FORM_GAUSSIAN_MODULATED) {
+        float sigma = (source.gaussianWidth / 1e9) / 2.35482;
+        float t0 = 4 * sigma;
+        float gaussian = exp(-1 * (pow(uniforms.t - t0, 2) / (2 * pow(sigma, 2))));
+        float frequencyHz = source.frequency * 1e9;
+        float sine = sin(2 * M_PI_F * frequencyHz * (uniforms.t - 0) + source.phase);
+        return source.amplitude * gaussian * sine;
+    }
+    
+    return 0;
+}
 
 float sourceContribution(uint2 id, constant ElectricSource* sources, constant Uniforms& uniforms) {
     float contribution = 0.0;
     
     for (uint i = 0; i < uniforms.sourceCount; i++) {
-        ElectricSource source = sources[i];
+        ElectricSource source = sources[i];        
         
-        uint simX = source.x + uniforms.pmlThickness;
-        uint simY = source.y + uniforms.pmlThickness;
-        
-        if (id.x == simX && id.y == simY) {
-            // Just handle point, sine functions
-            if (source.type == TYPE_POINT && source.form == FORM_SINE) {
-                float frequencyHz = source.frequency * 1e9;
-                contribution += source.amplitude * sin(2.0 * M_PI_F * frequencyHz * uniforms.t + source.phase);
-            } else if (source.type == TYPE_POINT && source.form == FORM_PULSE) {
-                float frequencyHz = source.frequency * 1e9;
-                if (uniforms.t < (source.duration / 1e9)) {
-                    contribution += source.amplitude * sin(2.0 * M_PI_F * frequencyHz * uniforms.t + source.phase);
-                }
-            } else if (source.type == TYPE_POINT && source.form == FORM_GAUSSIAN) {
-                float sigma = (source.gaussianWidth / 1e9) / 2.35482;
-                float t0 = 4 * sigma;
-                contribution += source.amplitude * exp(-1 * (pow(uniforms.t - t0, 2) / (2 * pow(sigma, 2))));
-            } else if (source.type == TYPE_POINT && source.form == FORM_GAUSSIAN_MODULATED) {
-                float sigma = (source.gaussianWidth / 1e9) / 2.35482;
-                float t0 = 4 * sigma;
-                float gaussian = exp(-1 * (pow(uniforms.t - t0, 2) / (2 * pow(sigma, 2))));
-                float frequencyHz = source.frequency * 1e9;
-                float sine = sin(2 * M_PI_F * frequencyHz * (uniforms.t - 0) + source.phase);
-                contribution += source.amplitude * gaussian * sine;
+        if (source.type == TYPE_POINT) {
+                   uint simX = source.x + uniforms.pmlThickness;
+                   uint simY = source.y + uniforms.pmlThickness;
+
+                   if (id.x == simX && id.y == simY) {
+                       contribution += valueForSource(
+                           source,
+                           uniforms
+                       );
+                   }
+               }
+
+        else if (source.type == TYPE_LINE) {
+            float2 center = float2(
+                                   source.x + uniforms.pmlThickness,
+                                   source.y + uniforms.pmlThickness
+                                   );
+            
+            float angle =
+            source.rotation * M_PI_F / 180.0f;
+            
+            float2 direction = float2(
+                                      cos(angle),
+                                      sin(angle)
+                                      );
+            
+            float halfWidth =
+            float(source.width) * 0.5f;
+            
+            float2 a =
+            center - direction * halfWidth;
+            
+            float2 b =
+            center + direction * halfWidth;
+            
+            float2 p = float2(id);
+            
+            float2 ab = b - a;
+            float2 ap = p - a;
+            
+            float abLengthSquared = dot(ab, ab);
+            
+            if (abLengthSquared > 0.0f) {
+                float projection =
+                dot(ap, ab) / abLengthSquared;
+                
+                float distance =
+                abs(
+                    ab.x * ap.y -
+                    ab.y * ap.x
+                    )
+                / sqrt(abLengthSquared);
+                
+                if (
+                    projection >= 0.0f &&
+                    projection <= 1.0f &&
+                    distance <= 0.75f
+                    ) {
+                        contribution += valueForSource(
+                                                       source,
+                                                       uniforms
+                                                       );
+                    }
             }
         }
     }

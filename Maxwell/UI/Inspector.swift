@@ -249,6 +249,10 @@ struct Inspector: View {
                 Spacer()
                 UIntField("Y:", value: sourceBinding(\.y, default: 0), unit: "")
             }
+            if getSourceType() == .line {
+                UIntField("Width", value: sourceBinding(\.width, default: 0), unit: "")
+                FloatField("Rotation", value: sourceBinding(\.rotation, default: 0), unit: "°")
+            }
             
             FloatField("Amplitude", value: sourceBinding(\.amplitude, default: 0), unit: "V/m")
             if getSourceForm() != .gaussianPulse {
@@ -397,6 +401,10 @@ struct Inspector: View {
     
     private func getSourceForm() -> SourceForm {
         return SourceForm(rawValue: renderer.getSource(i: getSourceIndex())!.form)!
+    }
+    
+    private func getSourceType() -> SourceType {
+        return SourceType(rawValue: renderer.getSource(i: getSourceIndex())!.type)!
     }
     
     private func getSourceIndex() -> Int {

@@ -857,7 +857,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         settings.height = gridConfig.height
         
         if !didCreateDefaultSource {
-            self.sources = [ElectricSource(x: safelyCheckUInt(settings.Nx / 2), y: safelyCheckUInt(settings.Ny / 2),
+            self.sources = [ElectricSource(x: safelyCheckUInt(settings.Nx / 2), y: safelyCheckUInt(settings.Ny / 2), width: 0, rotation: 0,
                                            frequency: calculateFrequency(cellsPerWavelength: 20.0, settings: settings),
                                            amplitude: 1.0,
                                            phase: 0.0,

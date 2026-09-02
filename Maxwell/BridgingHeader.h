@@ -16,12 +16,15 @@ struct GridCell {
 };
 
 struct ElectricSource {
-    unsigned int x;
-    unsigned int y;
+    unsigned int x; // cells
+    unsigned int y; // cells
     
-    float frequency;
-    float amplitude;
-    float phase;
+    unsigned int width; // cells
+    float rotation; // degrees
+    
+    float frequency; // GHz
+    float amplitude; // V/m
+    float phase; // rad
     unsigned int type; // 0 -> line, 1 -> point, 2 -> beam
     unsigned int form; // 0 -> sine, 1 -> pulse, 2 -> gaussian burst, 3 -> gaussian-modulated
     
