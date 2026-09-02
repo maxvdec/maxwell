@@ -115,7 +115,11 @@ struct BottomInspectorView: View {
             guard getSource() != nil else {
                 return
             }
-            updateSamples()
+            if Float(domainInformation.amplitude) != getSource()!.amplitude {
+                autoFit()
+            } else {
+                updateSamples()
+            }
         }
     }
 

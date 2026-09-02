@@ -220,7 +220,7 @@ struct MetalView: NSViewRepresentable {
         source.gaussianWidth = 1.0
         source.length = safelyCheckUInt(renderer.settings.Nx / 2)
         source.rotation = 0.0
-        
+
         source.beamWaist = Float(source.length) * 0.25
 
         let index =
@@ -857,6 +857,13 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     private var didCreateDefaultSource = false
 
+    @MainActor
+    var ez3DSnapshot: EzFieldSnapshot?
+
+    private let ez3DResolution = 64
+    
+    private var frameNumber = 0
+
     var effectivePMLThickness: Int {
         settings.reflectWalls ? 0 : settings.pmlThickness
     }
@@ -1146,6 +1153,24 @@ final class Renderer: NSObject, MTKViewDelegate {
                 encoder: encoder
             )
         }
+        
+        commandBuffer.addCompletedHandler { [weak self] _ in
+            guard let self else {
+                return
+            }
+
+            guard self.editor?.visualizationMode == .field3D else {
+                return
+            }
+
+            self.frameNumber += 1
+            if self.frameNumber % 3 == 0 {
+                let result = self.makeEz3DSnapshot()
+                Task { @MainActor in
+                    self.ez3DSnapshot = result
+                }
+            }
+        }
 
         encoder.endEncoding()
 
@@ -1224,5 +1249,60 @@ final class Renderer: NSObject, MTKViewDelegate {
         }
 
         return nil
+    }
+
+    func makeEz3DSnapshot() -> EzFieldSnapshot {
+        let targetNx = ez3DResolution
+        let targetNy = ez3DResolution
+
+        let simNx = makeSimCount().0
+
+        let pml = effectivePMLThickness
+
+        var values = Array(
+            repeating: 0.0,
+            count: targetNx * targetNy
+        )
+
+        cells.withBufferContents { grid in
+            for y in 0 ..< targetNy {
+                for x in 0 ..< targetNx {
+                    let normalizedX =
+                        Double(x) / Double(targetNx - 1)
+
+                    let normalizedY =
+                        Double(y) / Double(targetNy - 1)
+
+                    let gridX =
+                        pml +
+                        Int(
+                            normalizedX *
+                                Double(settings.Nx - 1)
+                        )
+
+                    let gridY =
+                        pml +
+                        Int(
+                            normalizedY *
+                                Double(settings.Ny - 1)
+                        )
+
+                    let index =
+                        gridY * simNx + gridX
+
+                    let value = Double(grid[index].Ez)
+                    values[y * targetNx + x] =
+                        value.isFinite ? value : 0
+                }
+            }
+        }
+
+        return EzFieldSnapshot(
+            nx: targetNx,
+            ny: targetNy,
+            physicalWidth: Double(settings.width),
+            physicalHeight: Double(settings.height),
+            values: values
+        )
     }
 }

@@ -44,6 +44,7 @@ struct MyApp: App {
     }
 }
 
+
 struct ContentView: View {
     @State private var renderer: Renderer
     @State private var settings: SimulationSettings
@@ -68,11 +69,18 @@ struct ContentView: View {
     }
 
     var body: some View {
-        VStack {
+        ZStack {
             MetalView(
                 renderer: renderer,
                 editor: editor
             )
+            .opacity(editor.visualizationMode == .field2D ? 1 : 0)
+            .allowsHitTesting(editor.visualizationMode == .field2D)
+            
+            if editor.visualizationMode == .field3D {
+                Ez3DVisualizationView(renderer: renderer)
+                    .background(.background)
+            }
         }
         .onKeyPress(.space) {
             settings.paused.toggle()
@@ -83,7 +91,11 @@ struct ContentView: View {
                 VStack {
                     TopBar(
                         renderer: $renderer,
-                        settings: $settings
+                        settings: $settings,
+                        visualizationMode: Binding(
+                            get: { editor.visualizationMode },
+                            set: { editor.visualizationMode = $0 }
+                        )
                     )
 
                     Spacer()

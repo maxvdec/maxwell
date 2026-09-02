@@ -42,8 +42,41 @@ final class EditorState {
     var hoveredSource: Int?
 
     var selection: InspectorSelection = .none
+    var visualizationMode: VisualizationMode = .field2D
 }
 
+
+enum VisualizationMode: CaseIterable {
+    case field2D
+    case field3D
+
+    var name: String {
+        switch self {
+        case .field2D:
+            "2D Field"
+        case .field3D:
+            "3D Graph"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .field2D:
+            "square.grid.2x2"
+        case .field3D:
+            "graph.3d"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .field2D:
+                .red.opacity(0.7)
+        case .field3D:
+                .blue.opacity(0.7)
+        }
+    }
+}
 final class MaxwellMTKView: MTKView {
 
     var onMouseMoved: ((CGPoint) -> Void)?

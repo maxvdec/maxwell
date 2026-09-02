@@ -894,6 +894,22 @@ class MTLSyncBuffer<T> {
         return array
     }
 
+    func withBufferContents<Result>(
+        _ body: (UnsafeBufferPointer<T>) -> Result
+    ) -> Result {
+        let pointer = buffer.contents().bindMemory(
+            to: T.self,
+            capacity: array.count
+        )
+
+        return body(
+            UnsafeBufferPointer(
+                start: pointer,
+                count: array.count
+            )
+        )
+    }
+
     @available(*, deprecated, message: "Try not to access internal arrays or buffers")
     func getBuffer() -> MTLBuffer {
         return buffer
