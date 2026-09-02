@@ -282,9 +282,11 @@ class EzUpdatePass: ComputePass {
     let pipeline: MTLComputePipelineState
     var cells: Reference<MTLSyncBuffer<GridCell>>
     var sources: Reference<[ElectricSource]>
+    var materials: Reference<[EMMaterial]>
 
-    init(device: MTLDevice, library: MTLLibrary, cells: Reference<MTLSyncBuffer<GridCell>>, sources: Reference<[ElectricSource]>) {
+    init(device: MTLDevice, library: MTLLibrary, cells: Reference<MTLSyncBuffer<GridCell>>, sources: Reference<[ElectricSource]>, materials: Reference<[EMMaterial]>) {
         self.cells = cells
+        self.materials = materials
         self.sources = sources
         let function = library.makeFunction(name: "updateEz")!
         self.pipeline = try! device.makeComputePipelineState(function: function)
@@ -313,6 +315,10 @@ class EzUpdatePass: ComputePass {
             }
         }
 
+        materials.unwrap().withUnsafeBytes { bytes in
+            encoder.setBytes(bytes.baseAddress!, length: bytes.count, index: 3)
+        }
+
         let threadsPerGrid = MTLSize(width: Int(uniforms.Nx), height: Int(uniforms.Ny), depth: 1)
 
         let width = pipeline.threadExecutionWidth
@@ -330,9 +336,11 @@ class EzUpdatePass: ComputePass {
 class HFieldUpdatePass: ComputePass {
     let pipeline: MTLComputePipelineState
     var cells: Reference<MTLSyncBuffer<GridCell>>
+    var materials: Reference<[EMMaterial]>
 
-    init(device: MTLDevice, library: MTLLibrary, cells: Reference<MTLSyncBuffer<GridCell>>) {
+    init(device: MTLDevice, library: MTLLibrary, cells: Reference<MTLSyncBuffer<GridCell>>, materials: Reference<[EMMaterial]>) {
         self.cells = cells
+        self.materials = materials
         let function = library.makeFunction(name: "updateH")!
         self.pipeline = try! device.makeComputePipelineState(function: function)
     }
@@ -349,6 +357,10 @@ class HFieldUpdatePass: ComputePass {
 
         cells.unwrap().setAtEncoder(encoder, index: 0)
         encoder.setBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
+
+        materials.unwrap().withUnsafeBytes { bytes in
+            encoder.setBytes(bytes.baseAddress!, length: bytes.count, index: 2)
+        }
 
         let threadsPerGrid = MTLSize(width: Int(uniforms.Nx), height: Int(uniforms.Ny), depth: 1)
 
@@ -842,6 +854,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     private var cells: MTLSyncBuffer<GridCell>
     private var sources: [ElectricSource] = []
+    private var materials: [EMMaterial] = [EMMaterial(epsilonR: 1.0, muR: 1.0, sigma: 0.0), EMMaterial(epsilonR: 4.0, muR: 1.0, sigma: 1e-12)] // Vaccum material for starting and glass for testing
     private var sourceNames: [String] = []
 
     private var uniforms: Uniforms
@@ -861,7 +874,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     var ez3DSnapshot: EzFieldSnapshot?
 
     private let ez3DResolution = 64
-    
+
     private var frameNumber = 0
 
     var effectivePMLThickness: Int {
@@ -903,8 +916,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 
         self.cells = MTLSyncBuffer(device: device, values: Renderer.makeCells(nx: settings.Nx + 2 * settings.pmlThickness, ny: settings.Ny + 2 * settings.pmlThickness))
 
-        self.ezUpdatePass = EzUpdatePass(device: device, library: library, cells: Reference(), sources: Reference())
-        self.hUpdatePass = HFieldUpdatePass(device: device, library: library, cells: Reference())
+        self.ezUpdatePass = EzUpdatePass(device: device, library: library, cells: Reference(), sources: Reference(), materials: Reference())
+        self.hUpdatePass = HFieldUpdatePass(device: device, library: library, cells: Reference(), materials: Reference())
         self.uniforms = Uniforms()
 
         self.sourceGeometryRenderer = SourceGeometryRenderer(device: device, library: library)
@@ -912,7 +925,18 @@ final class Renderer: NSObject, MTKViewDelegate {
     }
 
     static func makeCells(nx: Int, ny: Int) -> [GridCell] {
-        return Array(repeating: GridCell(Ez: 0, H: .zero), count: nx * ny)
+        var cells = Array(
+            repeating: GridCell(Ez: 0, H: .zero, materialIndex: 0),
+            count: nx * ny
+        )
+
+        for y in 0 ..< min(100, ny) {
+            for x in 0 ..< nx {
+                cells[y * nx + x].materialIndex = 1
+            }
+        }
+
+        return cells
     }
 
     @discardableResult
@@ -998,7 +1022,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     func updateRenderTexture(view: MTKView) {
         ezRenderPass.texturePass.value = texturePass
-        texturePass.updateTexture(for: view.drawableSize / 4)
+        texturePass.updateTexture(for: view.drawableSize / 2)
         gaussianHorizontal.inTexture.value = texturePass.texture
         gaussianHorizontal.updateTexture()
         gaussianVertical.inTexture.value = gaussianHorizontal.outTexture
@@ -1020,7 +1044,9 @@ final class Renderer: NSObject, MTKViewDelegate {
         ezRenderPass.cells.value = cells
         ezUpdatePass.cells.value = cells
         ezUpdatePass.sources.value = sources
+        ezUpdatePass.materials.value = materials
         hUpdatePass.cells.value = cells
+        hUpdatePass.materials.value = materials
 
         gaussianVertical.blurAmount = settings.blurAmount
         gaussianHorizontal.blurAmount = settings.blurAmount
@@ -1043,6 +1069,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         uniforms.pmlThickness = settings.reflectWalls ? 0 : UInt32(settings.pmlThickness)
 
         uniforms.sourceCount = UInt32(sources.count)
+        uniforms.materialCount = Int32(materials.count)
     }
 
     func resetSimulation() {
@@ -1153,7 +1180,7 @@ final class Renderer: NSObject, MTKViewDelegate {
                 encoder: encoder
             )
         }
-        
+
         commandBuffer.addCompletedHandler { [weak self] _ in
             guard let self else {
                 return

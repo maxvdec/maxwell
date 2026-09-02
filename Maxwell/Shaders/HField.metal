@@ -12,7 +12,7 @@ using namespace metal;
 
 kernel void updateH(device GridCell* cells [[buffer(0)]],
                     constant Uniforms& uniforms [[buffer(1)]],
-                    constant Material* materials [[buffer(2)]],
+                    constant EMMaterial* materials [[buffer(2)]],
                     uint2 id [[thread_position_in_grid]]) {
     if (id.x >= uniforms.Nx - 1 || id.y >= uniforms.Ny - 1) {
         return;
@@ -40,7 +40,7 @@ kernel void updateH(device GridCell* cells [[buffer(0)]],
         mu = mu0;
         epsilon = epsilon0;
     } else {
-        Material mat = materials[cell.materialIndex];
+        EMMaterial mat = materials[cell.materialIndex];
         mu = mat.muR * mu0;
         epsilon = mat.epsilonR * epsilon0;
     }

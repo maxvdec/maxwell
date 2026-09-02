@@ -124,7 +124,7 @@ float sourceContribution(uint2 id, constant ElectricSource* sources, constant Un
 kernel void updateEz(device GridCell* cells [[buffer(0)]],
                      constant Uniforms& uniforms [[buffer(1)]],
                      constant ElectricSource* sources [[buffer(2)]],
-                     constant Material* materials [[buffer(3)]],
+                     constant EMMaterial* materials [[buffer(3)]],
                      uint2 id [[thread_position_in_grid]]) {
     if (id.x >= uniforms.Nx || id.y >= uniforms.Ny) {
         return;
@@ -150,7 +150,7 @@ kernel void updateEz(device GridCell* cells [[buffer(0)]],
     if (current.materialIndex >= uniforms.materialCount) {
         epslion = epsilon0;
     } else {
-        Material mat = materials[current.materialIndex];
+        EMMaterial mat = materials[current.materialIndex];
         epslion = mat.epsilonR * epsilon0;
         sigmaMaterial = mat.sigma;
     }
