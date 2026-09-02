@@ -854,7 +854,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     private var cells: MTLSyncBuffer<GridCell>
     private var sources: [ElectricSource] = []
-    private var materials: [EMMaterial] = [EMMaterial(epsilonR: 1.0, muR: 1.0, sigma: 0.0), EMMaterial(epsilonR: 4.0, muR: 1.0, sigma: 1e-12)] // Vaccum material for starting and glass for testing
+    private var materials: [EMMaterial] = [EMMaterial(epsilonR: 1.0, muR: 1.0, sigma: 0.0)] // Vaccum material
+    private var materialNames: [String] = ["Vaccum"]
     private var sourceNames: [String] = []
 
     private var uniforms: Uniforms
@@ -922,21 +923,37 @@ final class Renderer: NSObject, MTKViewDelegate {
 
         self.sourceGeometryRenderer = SourceGeometryRenderer(device: device, library: library)
         self.sourceOverlayRenderer = SourceOverlayRenderer(device: device, library: library)
+        
+        materials = [
+            EMMaterial(epsilonR: 1.0, muR: 1.0, sigma: 0.0), // Vaccum
+            EMMaterial(epsilonR: 1.0006, muR: 1.0000004, sigma: 0.0), // Air
+            EMMaterial(epsilonR: 2.1, muR: 1.0, sigma: 1e-15), // PTFE
+            EMMaterial(epsilonR: 4.0, muR: 1.0, sigma: 1e-12), // Glass
+            EMMaterial(epsilonR: 11.7, muR: 1.0, sigma: 0.0), // Silicon
+            EMMaterial(epsilonR: 4.5, muR: 1.0, sigma: 0.02), // Concrete
+            EMMaterial(epsilonR: 75, muR: 1.0, sigma: 4.0), // Seawater
+            EMMaterial(epsilonR: 12, muR: 100, sigma: 0.01), // Ferrite
+            EMMaterial(epsilonR: 1, muR: 1, sigma: 5.8e7), // Copper
+        ]
+        
+        materialNames = [
+            "Vaccum",
+            "Air",
+            "Polytetrafluoroethylene (PTFE)",
+            "Glass",
+            "Silicon",
+            "Concrete",
+            "Seawater (approximate preset - should vary with wavelength)",
+            "Ferrite (approximate preset - should vary with wavelength)",
+            "Copper"
+        ]
     }
 
     static func makeCells(nx: Int, ny: Int) -> [GridCell] {
-        var cells = Array(
+        return Array(
             repeating: GridCell(Ez: 0, H: .zero, materialIndex: 0),
             count: nx * ny
         )
-
-        for y in 0 ..< min(100, ny) {
-            for x in 0 ..< nx {
-                cells[y * nx + x].materialIndex = 1
-            }
-        }
-
-        return cells
     }
 
     @discardableResult
@@ -1018,6 +1035,66 @@ final class Renderer: NSObject, MTKViewDelegate {
         }
 
         return sources[i]
+    }
+    
+    @discardableResult
+    func addMaterial(
+        _ material: EMMaterial,
+        name: String
+    ) -> Int {
+        materials.append(material)
+        materialNames.append(name)
+
+        sourcesRevision += 1
+
+        return sources.count - 1
+    }
+
+    func updateMaterial(i: Int, material: EMMaterial) {
+        materials[i] = material
+        sourcesRevision += 1
+    }
+
+    func renameMaterial(
+        i: Int,
+        name: String
+    ) {
+        guard materialNames.indices.contains(i) else {
+            return
+        }
+
+        materialNames[i] = name
+        sourcesRevision += 1
+    }
+
+    func removeMaterial(i: Int) {
+        guard materials.indices.contains(i) else {
+            return
+        }
+
+        materials.remove(at: i)
+
+        if materialNames.indices.contains(i) {
+            materialNames.remove(at: i)
+        }
+
+        sourcesRevision += 1
+    }
+
+    func getNameForMaterial(i: Int) -> String? {
+        guard materialNames.indices.contains(i) else {
+            return nil
+        }
+
+        return materialNames[i]
+    }
+
+    func getMaterial(i: Int) -> EMMaterial? {
+        guard materials.indices.contains(i) else {
+            return nil
+        }
+
+        return materials[i]
     }
 
     func updateRenderTexture(view: MTKView) {
