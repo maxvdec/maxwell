@@ -21,6 +21,7 @@ struct ElectricSource {
     
     unsigned int length; // cells
     float rotation; // degrees
+    float beamWaist; // cells
     
     float frequency; // GHz
     float amplitude; // V/m

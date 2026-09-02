@@ -66,7 +66,7 @@ float sourceContribution(uint2 id, constant ElectricSource* sources, constant Un
                    }
                }
 
-        else if (source.type == TYPE_LINE) {
+        else if (source.type == TYPE_LINE || source.type == TYPE_BEAM) {
             float2 center = float2(
                                    source.x + uniforms.pmlThickness,
                                    source.y + uniforms.pmlThickness
@@ -97,26 +97,22 @@ float sourceContribution(uint2 id, constant ElectricSource* sources, constant Un
             float abLengthSquared = dot(ab, ab);
             
             if (abLengthSquared > 0.0f) {
-                float projection =
-                dot(ap, ab) / abLengthSquared;
+                float projection = dot(ap, ab) / abLengthSquared;
                 
-                float distance =
-                abs(
-                    ab.x * ap.y -
-                    ab.y * ap.x
-                    )
-                / sqrt(abLengthSquared);
+                float distance = abs(ab.x * ap.y - ab.y * ap.x) / sqrt(abLengthSquared);
                 
-                if (
-                    projection >= 0.0f &&
-                    projection <= 1.0f &&
-                    distance <= 0.75f
-                    ) {
-                        contribution += valueForSource(
-                                                       source,
-                                                       uniforms
-                                                       );
+                if (projection >= 0.0f && projection <= 1.0f && distance <= 0.75f) {
+                    if (source.type == TYPE_LINE) {
+                        contribution += valueForSource(source,uniforms);
+                    } else {
+                        float positionAlong = (projection - 0.5) * float(source.length);
+                        
+                        float waist = source.beamWaist;
+                        
+                        float profile = exp(-(positionAlong * positionAlong) / (waist * waist));
+                        contribution += valueForSource(source, uniforms) * profile;
                     }
+                }
             }
         }
     }

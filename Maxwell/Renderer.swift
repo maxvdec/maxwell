@@ -216,10 +216,12 @@ struct MetalView: NSViewRepresentable {
 
         source.amplitude = 1.0
         source.phase = 0.0
-        
+
         source.gaussianWidth = 1.0
         source.length = safelyCheckUInt(renderer.settings.Nx / 2)
         source.rotation = 0.0
+        
+        source.beamWaist = Float(source.length) * 0.25
 
         let index =
             renderer.addSource(
@@ -629,7 +631,7 @@ class SourceOverlayRenderer {
 
 class SourceGeometryRenderer {
     let pass: RectangleOverlayRenderPass
-    
+
     init(
         device: MTLDevice,
         library: MTLLibrary
@@ -700,15 +702,15 @@ class SourceGeometryRenderer {
         let v =
             Float(source.y)
                 / Float(visibleNy - 1)
-        
+
         let center = SIMD2<Float>(
             u * 2 - 1,
             1 - v * 2
         )
-        
+
         let cellWidthNDC =
             2.0 / Float(visibleNx)
-        
+
         let angle =
             source.rotation * .pi / 180
 
@@ -716,39 +718,38 @@ class SourceGeometryRenderer {
             cos(angle),
             -sin(angle)
         )
-        
+
         let normal = SIMD2<Float>(
             -direction.y,
             direction.x
         )
-        
+
         let halfLength =
             Float(source.length) * 0.5
-        
+
         let cellSizeNDC = SIMD2<Float>(
             2.0 / Float(visibleNx),
             2.0 / Float(visibleNy)
         )
-        
+
         let along =
             direction *
             SIMD2<Float>(
                 halfLength * cellSizeNDC.x,
                 halfLength * cellSizeNDC.y
             )
-        
+
         let thicknessCells: Float = 2
 
         let perpendicular = SIMD2<Float>(
             normal.x * thicknessCells * cellSizeNDC.x,
             normal.y * thicknessCells * cellSizeNDC.y
         )
-        
+
         let p0 = center - along - perpendicular
         let p1 = center + along - perpendicular
         let p2 = center + along + perpendicular
         let p3 = center - along + perpendicular
-
 
         let vertices: [SimpleOverlayVertex] = [
             .init(
@@ -781,17 +782,17 @@ class SourceGeometryRenderer {
                 uv: [0, 1]
             )
         ]
-        
+
         let cellSizePx = SIMD2<Float>(
             Float(drawableSize.width) / Float(visibleNx),
             Float(drawableSize.height) / Float(visibleNy)
         )
-        
+
         let lengthPx =
             Float(source.length) * cellSizePx.x
 
         let thicknessPx: Float = 14
-        
+
         var geometryUniforms = LineGeometryUniforms(
             sizePx: SIMD2<Float>(
                 lengthPx,
@@ -851,7 +852,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     var drawableSize: CGSize = .zero
 
     var editor: EditorState?
-    
+
     private var didCreateDefaultSource = false
 
     var effectivePMLThickness: Int {
@@ -899,7 +900,6 @@ final class Renderer: NSObject, MTKViewDelegate {
 
         self.sourceGeometryRenderer = SourceGeometryRenderer(device: device, library: library)
         self.sourceOverlayRenderer = SourceOverlayRenderer(device: device, library: library)
-       
     }
 
     static func makeCells(nx: Int, ny: Int) -> [GridCell] {
@@ -923,7 +923,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         sources[i] = source
         sourcesRevision += 1
     }
-    
+
     func renameSource(
         i: Int,
         name: String
@@ -987,14 +987,14 @@ final class Renderer: NSObject, MTKViewDelegate {
         gaussianVertical.inTexture.value = gaussianHorizontal.outTexture
         gaussianVertical.updateTexture()
     }
-    
+
     func calculateSigmaMaxXY() {
         let pmlPhysicalWidthX = Float(uniforms.pmlThickness) * uniforms.dx
         let sigmaMaxX = calculateSigmaMax(pmlPhysical: pmlPhysicalWidthX)
-        
+
         let pmlPhysicalWidthY = Float(uniforms.pmlThickness) * uniforms.dy
         let sigmaMaxY = calculateSigmaMax(pmlPhysical: pmlPhysicalWidthY)
-        
+
         uniforms.sigmaMaxX = sigmaMaxX
         uniforms.sigmaMaxY = sigmaMaxY
     }
@@ -1015,7 +1015,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 
         uniforms.Nx = UInt32(makeSimCount().0)
         uniforms.Ny = UInt32(makeSimCount().1)
-        
+
         calculateSigmaMaxXY()
 
         uniforms.sourceFrequency = settings.sourceFrequency * 1e9 // Transform to Hz
@@ -1052,14 +1052,14 @@ final class Renderer: NSObject, MTKViewDelegate {
         settings.Ny = gridConfig.ny
         settings.width = gridConfig.width
         settings.height = gridConfig.height
-        
+
         if !didCreateDefaultSource {
-            self.sources = [ElectricSource(x: safelyCheckUInt(settings.Nx / 2), y: safelyCheckUInt(settings.Ny / 2), length: 0, rotation: 0,
-                                           frequency: calculateFrequency(cellsPerWavelength: 20.0, settings: settings),
-                                           amplitude: 1.0,
-                                           phase: 0.0,
-                                           type: SourceType.point.rawValue, form: SourceForm.sine.rawValue, duration: 0.0, gaussianWidth: 0.0)]
-            self.sourceNames = ["Point Source 1"]
+            sources = [ElectricSource(x: safelyCheckUInt(settings.Nx / 2), y: safelyCheckUInt(settings.Ny / 2), length: 0, rotation: 0, beamWaist: 0.0,
+                                      frequency: calculateFrequency(cellsPerWavelength: 20.0, settings: settings),
+                                      amplitude: 1.0,
+                                      phase: 0.0,
+                                      type: SourceType.point.rawValue, form: SourceForm.sine.rawValue, duration: 0.0, gaussianWidth: 0.0)]
+            sourceNames = ["Point Source 1"]
             print(sources[0])
             didCreateDefaultSource = true
         }
@@ -1121,7 +1121,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 
         sourceGeometryRenderer.dispatchAll(commandBuffer: commandBuffer, descriptor: descriptor, sources: sources, uniforms: uniforms, drawableSize: view.drawableSize, encoder: encoder)
         sourceOverlayRenderer.dispatchAll(commandBuffer: commandBuffer, descriptor: descriptor, uniforms: &uniforms, sources: sources, drawableSize: view.drawableSize, encoder: encoder)
-        
+
         if let editor,
            let position = editor.hoveredGridPosition,
            let type = editor.currentTool.sourceType
@@ -1216,4 +1216,3 @@ final class Renderer: NSObject, MTKViewDelegate {
         return nil
     }
 }
-

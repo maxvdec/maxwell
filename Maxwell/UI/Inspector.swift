@@ -249,9 +249,13 @@ struct Inspector: View {
                 Spacer()
                 UIntField("Y:", value: sourceBinding(\.y, default: 0), unit: "")
             }
-            if getSourceType() == .line {
+            if getSourceType() != .point  {
                 UIntField("Width", value: sourceBinding(\.length, default: 0), unit: "")
                 FloatField("Rotation", value: sourceBinding(\.rotation, default: 0), unit: "°")
+            }
+            
+            if getSourceType() == .beam  {
+                FloatField("Beam Waist", value: sourceBinding(\.beamWaist, default: 0), unit: "")
             }
             
             FloatField("Amplitude", value: sourceBinding(\.amplitude, default: 0), unit: "V/m")

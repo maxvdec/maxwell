@@ -87,7 +87,7 @@ enum SourceType: UInt32, CaseIterable, Hashable {
         switch self {
         case .line: "Line"
         case .point: "Point"
-        case .beam: "Beam"
+        case .beam: "Gaussian Beam"
         }
     }
 }
