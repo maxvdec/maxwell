@@ -84,6 +84,7 @@ struct ContentView: View {
                 )
                 .allowsHitTesting(
                     editor.currentTool == .pointer ||
+                        editor.currentTool == .move ||
                         editor.currentTool.isColliderTool
                 )
             }

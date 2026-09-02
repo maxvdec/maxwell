@@ -174,6 +174,9 @@ struct MetalView: NSViewRepresentable {
                     .none
             }
 
+        case .move:
+            return
+
         case .placePoint:
             placeSource(
                 type: .point,

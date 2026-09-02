@@ -151,6 +151,59 @@ enum ColliderGeometry: Equatable, Sendable {
         }
     }
 
+    var bounds: NormalizedRect {
+        switch self {
+        case let .rectangle(rect),
+             let .circle(rect),
+             let .lens(rect, _):
+            return rect
+        case let .polygon(points):
+            let minX = points.map(\.x).min() ?? 0
+            let minY = points.map(\.y).min() ?? 0
+            let maxX = points.map(\.x).max() ?? 0
+            let maxY = points.map(\.y).max() ?? 0
+            return NormalizedRect(
+                start: NormalizedPoint(x: minX, y: minY),
+                end: NormalizedPoint(x: maxX, y: maxY)
+            )
+        }
+    }
+
+    func translated(dx: Double, dy: Double) -> ColliderGeometry {
+        let bounds = bounds
+        let clampedX = min(max(dx, -bounds.minX), 1 - bounds.maxX)
+        let clampedY = min(max(dy, -bounds.minY), 1 - bounds.maxY)
+
+        func translatedPoint(_ point: NormalizedPoint) -> NormalizedPoint {
+            NormalizedPoint(
+                x: point.x + clampedX,
+                y: point.y + clampedY
+            )
+        }
+
+        func translatedRect(_ rect: NormalizedRect) -> NormalizedRect {
+            NormalizedRect(
+                start: translatedPoint(
+                    NormalizedPoint(x: rect.minX, y: rect.minY)
+                ),
+                end: translatedPoint(
+                    NormalizedPoint(x: rect.maxX, y: rect.maxY)
+                )
+            )
+        }
+
+        switch self {
+        case let .rectangle(rect):
+            return .rectangle(translatedRect(rect))
+        case let .circle(rect):
+            return .circle(translatedRect(rect))
+        case let .polygon(points):
+            return .polygon(points.map(translatedPoint))
+        case let .lens(rect, preset):
+            return .lens(translatedRect(rect), preset)
+        }
+    }
+
     func contains(_ point: NormalizedPoint) -> Bool {
         switch self {
         case let .rectangle(rect):
@@ -246,6 +299,12 @@ struct ColliderCanvasOverlay: View {
     @State private var dragStart: NormalizedPoint?
     @State private var freehandPoints: [NormalizedPoint] = []
     @State private var draftGeometry: ColliderGeometry?
+    @State private var moveTarget: MoveTarget?
+
+    private enum MoveTarget {
+        case collider(FieldCollider)
+        case source(index: Int, start: SIMD2<UInt32>)
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -280,10 +339,11 @@ struct ColliderCanvasOverlay: View {
                 .onContinuousHover { phase in
                     handleHover(phase, size: geometry.size)
                 }
-                .cursor(editor.currentTool.isColliderTool ? .crosshair : .arrow)
+                .cursor(cursor)
         }
         .onChange(of: editor.currentTool) {
             cancelDraft()
+            moveTarget = nil
         }
     }
 
@@ -301,6 +361,11 @@ struct ColliderCanvasOverlay: View {
         _ value: DragGesture.Value,
         size: CGSize
     ) {
+        if editor.currentTool == .move {
+            handleMoveChanged(value, size: size)
+            return
+        }
+
         guard case let .placeCollider(tool) = editor.currentTool else {
             if dragStart == nil {
                 select(at: value.startLocation, size: size)
@@ -351,6 +416,14 @@ struct ColliderCanvasOverlay: View {
     ) {
         defer {
             cancelDraft()
+            moveTarget = nil
+        }
+
+        if editor.currentTool == .move {
+            if case .collider = moveTarget {
+                editor.commitColliderMove()
+            }
+            return
         }
 
         guard case let .placeCollider(tool) = editor.currentTool,
@@ -414,7 +487,9 @@ struct ColliderCanvasOverlay: View {
         _ phase: HoverPhase,
         size: CGSize
     ) {
-        guard editor.currentTool == .pointer else {
+        guard editor.currentTool == .pointer ||
+                editor.currentTool == .move
+        else {
             editor.hoveredCollider = nil
             editor.hoveredSource = nil
             return
@@ -445,6 +520,90 @@ struct ColliderCanvasOverlay: View {
         dragStart = nil
         freehandPoints = []
         draftGeometry = nil
+    }
+
+    private func handleMoveChanged(
+        _ value: DragGesture.Value,
+        size: CGSize
+    ) {
+        let start = NormalizedPoint(value.startLocation, in: size)
+        let current = NormalizedPoint(value.location, in: size)
+
+        if moveTarget == nil {
+            if let collider = editor.colliders.last(where: {
+                $0.geometry.contains(start)
+            }) {
+                moveTarget = .collider(collider)
+                editor.selection = .collider(collider.id)
+            } else if let sourceIndex = renderer.hitTestSource(
+                at: value.startLocation,
+                viewSize: size
+            ), let source = renderer.getSource(i: sourceIndex) {
+                moveTarget = .source(
+                    index: sourceIndex,
+                    start: SIMD2(source.x, source.y)
+                )
+                editor.selection = .source(sourceIndex)
+            } else {
+                editor.selection = .none
+            }
+        }
+
+        switch moveTarget {
+        case var .collider(collider):
+            collider.geometry = collider.geometry.translated(
+                dx: current.x - start.x,
+                dy: current.y - start.y
+            )
+            editor.previewColliderMove(collider)
+
+        case let .source(index, sourceStart):
+            guard var source = renderer.getSource(i: index) else {
+                return
+            }
+
+            let viewport = GridViewport(
+                nx: renderer.settings.Nx,
+                ny: renderer.settings.Ny,
+                viewSize: size
+            )
+
+            guard let startGrid = viewport.gridPosition(
+                from: value.startLocation
+            ), let currentGrid = viewport.gridPosition(
+                from: value.location
+            ) else {
+                return
+            }
+
+            let x = Int(sourceStart.x) +
+                Int(currentGrid.x) - Int(startGrid.x)
+            let y = Int(sourceStart.y) +
+                Int(currentGrid.y) - Int(startGrid.y)
+
+            source.x = UInt32(
+                clamping: min(max(x, 0), renderer.settings.Nx - 1)
+            )
+            source.y = UInt32(
+                clamping: min(max(y, 0), renderer.settings.Ny - 1)
+            )
+            renderer.updateSource(i: index, source: source)
+
+        case nil:
+            return
+        }
+    }
+
+    private var cursor: NSCursor {
+        if editor.currentTool.isColliderTool {
+            return .crosshair
+        }
+
+        if editor.currentTool == .move {
+            return moveTarget == nil ? .openHand : .closedHand
+        }
+
+        return .arrow
     }
 
     private func draw(

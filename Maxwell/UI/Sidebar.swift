@@ -21,6 +21,13 @@ struct Sidebar: View {
                 )
 
                 makeToolbarButton(
+                    tool: .move,
+                    image: "arrow.up.and.down.and.arrow.left.and.right",
+                    name: "Move sources and colliders",
+                    overrwriteWidth: 20
+                )
+
+                makeToolbarButton(
                     tool: .placePoint,
                     image: "target",
                     name: "Place a point source"

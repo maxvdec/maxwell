@@ -12,6 +12,7 @@ import SwiftUI
 
 enum Tool: Equatable {
     case pointer
+    case move
     case placePoint
     case placeLine
     case placeBeam
@@ -19,7 +20,7 @@ enum Tool: Equatable {
 
     var sourceType: SourceType? {
         switch self {
-        case .pointer, .placeCollider:
+        case .pointer, .move, .placeCollider:
             nil
         case .placePoint:
             .point
@@ -70,6 +71,20 @@ final class EditorState {
         }
 
         colliders[index] = collider
+        colliderRevision += 1
+    }
+
+    func previewColliderMove(_ collider: FieldCollider) {
+        guard let index = colliders.firstIndex(where: {
+            $0.id == collider.id
+        }) else {
+            return
+        }
+
+        colliders[index] = collider
+    }
+
+    func commitColliderMove() {
         colliderRevision += 1
     }
 
