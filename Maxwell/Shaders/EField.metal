@@ -124,6 +124,7 @@ float sourceContribution(uint2 id, constant ElectricSource* sources, constant Un
 kernel void updateEz(device GridCell* cells [[buffer(0)]],
                      constant Uniforms& uniforms [[buffer(1)]],
                      constant ElectricSource* sources [[buffer(2)]],
+                     constant Material* materials [[buffer(3)]],
                      uint2 id [[thread_position_in_grid]]) {
     if (id.x >= uniforms.Nx || id.y >= uniforms.Ny) {
         return;
@@ -144,6 +145,15 @@ kernel void updateEz(device GridCell* cells [[buffer(0)]],
     GridCell down = cells[indexDown];
     
     const float epsilon0 = 8.854187817e-12f;
+    float epslion = 0.0;
+    float sigmaMaterial = 0.0;
+    if (current.materialIndex >= uniforms.materialCount) {
+        epslion = epsilon0;
+    } else {
+        Material mat = materials[current.materialIndex];
+        epslion = mat.epsilonR * epsilon0;
+        sigmaMaterial = mat.sigma;
+    }
     
     float leftDiff = (current.H.y - left.H.y) / uniforms.dx;
     float downDiff = (current.H.x - down.H.x) / uniforms.dy;
@@ -155,10 +165,11 @@ kernel void updateEz(device GridCell* cells [[buffer(0)]],
     float sigmaY = uniforms.sigmaMaxY * pow(depthY, 3);
     
     float sigmaE = sigmaX + sigmaY;
+    float sigma = sigmaMaterial + sigmaE;
     
-    float lossE = sigmaE * uniforms.dt / (2.0f * epsilon0);
+    float lossE = sigma * uniforms.dt / (2.0f * epslion);
     float caE = (1.0f - lossE) / (1.0f + lossE);
-    float cbE = (uniforms.dt / epsilon0) / (1.0 + lossE);
+    float cbE = (uniforms.dt / epslion) / (1.0 + lossE);
     
     current.Ez = caE * current.Ez + cbE * (leftDiff - downDiff);
     

@@ -13,6 +13,7 @@
 struct GridCell {
     float Ez;
     simd_float2 H;
+    int materialIndex;
 };
 
 struct ElectricSource {
@@ -31,6 +32,12 @@ struct ElectricSource {
     
     float duration; // nanoseconds
     float gaussianWidth; // nanoseconds
+};
+
+struct Material {
+    float epsilonR; // Relative Permittivity
+    float muR; // Relative Permeability
+    float sigma; // Electrical Conductivity S/m
 };
 
 struct Uniforms {
@@ -54,6 +61,8 @@ struct Uniforms {
     
     float sigmaMaxX;
     float sigmaMaxY;
+    
+    int materialCount;
 };
 
 struct LineGeometryUniforms {
