@@ -74,10 +74,10 @@ struct ContentView: View {
                 renderer: renderer,
                 editor: editor
             )
-            .opacity(editor.visualizationMode == .field2D ? 1 : 0)
-            .allowsHitTesting(editor.visualizationMode == .field2D)
+            .opacity(editor.visualizationMode != .field3D ? 1 : 0)
+            .allowsHitTesting(editor.visualizationMode != .field3D)
 
-            if editor.visualizationMode == .field2D {
+            if editor.visualizationMode != .field3D {
                 ColliderCanvasOverlay(
                     editor: editor,
                     renderer: renderer
@@ -100,6 +100,11 @@ struct ContentView: View {
         }
         .onExitCommand {
             editor.currentTool = .pointer
+        }
+        .onChange(of: editor.visualizationMode) {
+            if editor.visualizationMode.rawValue >= 0 {
+                renderer.visualizationMethod = editor.visualizationMode
+            }
         }
         .overlay {
             ZStack {

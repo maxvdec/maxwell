@@ -220,7 +220,7 @@ struct MetalView: NSViewRepresentable {
                 renderer.settings
             )
 
-        source.amplitude = 1.0
+        source.amplitude = 10.0
         source.phase = 0.0
 
         source.gaussianWidth = 1.0
@@ -925,6 +925,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     private var frameNumber = 0
     private var appliedColliderRevision = -1
     private var shouldApplyColliderMaterials = false
+    
+    var visualizationMethod: VisualizationMode = .field2D
 
     var effectivePMLThickness: Int {
         settings.reflectWalls ? 0 : settings.pmlThickness
@@ -1222,6 +1224,8 @@ final class Renderer: NSObject, MTKViewDelegate {
 
         uniforms.sourceCount = UInt32(sources.count)
         uniforms.materialCount = Int32(materials.count)
+        
+        uniforms.visualizationMode = visualizationMethod.rawValue
     }
 
     func resetSimulation() {
@@ -1301,7 +1305,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         if !didCreateDefaultSource {
             sources = [ElectricSource(x: safelyCheckUInt(settings.Nx / 2), y: safelyCheckUInt(settings.Ny / 2), length: 0, rotation: 0, beamWaist: 0.0,
                                       frequency: calculateFrequency(cellsPerWavelength: 20.0, settings: settings),
-                                      amplitude: 1.0,
+                                      amplitude: 10.0,
                                       phase: 0.0,
                                       type: SourceType.point.rawValue, form: SourceForm.sine.rawValue, duration: 0.0, gaussianWidth: 0.0)]
             sourceNames = ["Point Source 1"]

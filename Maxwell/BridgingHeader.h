@@ -65,6 +65,8 @@ struct Uniforms {
     float sigmaMaxY;
     
     int materialCount;
+    
+    int visualizationMode;
 };
 
 struct LineGeometryUniforms {

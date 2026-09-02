@@ -111,9 +111,10 @@ final class EditorState {
 }
 
 
-enum VisualizationMode: CaseIterable {
-    case field2D
-    case field3D
+enum VisualizationMode: Int32, CaseIterable {
+    case field2D = 0
+    case field3D = -1
+    case electricMagnitude = 1
 
     var name: String {
         switch self {
@@ -121,6 +122,8 @@ enum VisualizationMode: CaseIterable {
             "2D Field"
         case .field3D:
             "3D Graph"
+        case .electricMagnitude:
+            "Electric Magnitude"
         }
     }
 
@@ -130,6 +133,8 @@ enum VisualizationMode: CaseIterable {
             "square.grid.2x2"
         case .field3D:
             "graph.3d"
+        case .electricMagnitude:
+            "bolt.fill"
         }
     }
     
@@ -139,6 +144,8 @@ enum VisualizationMode: CaseIterable {
                 .red.opacity(0.7)
         case .field3D:
                 .blue.opacity(0.7)
+        case .electricMagnitude:
+                .yellow.opacity(0.7)
         }
     }
 }

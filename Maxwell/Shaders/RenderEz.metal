@@ -9,6 +9,11 @@
 #include "../BridgingHeader.h"
 using namespace metal;
 
+enum VisualizationMode : int {
+    MODE_EZ = 0,
+    MODE_MAGNITUDE = 1,
+};
+
 kernel void renderEz(
     texture2d<float, access::write> outTexture [[texture(0)]],
     device GridCell* cells [[buffer(0)]],
@@ -49,15 +54,29 @@ kernel void renderEz(
     
     float ez = cells[index].Ez;
     
-    float v = clamp(ez * uniforms.visualizationScale, -1.0, 1.0);
+    if (uniforms.visualizationMode == MODE_EZ) {
+        float x = ez * uniforms.visualizationScale;
 
-    float3 negativeColor = float3(0.1, 0.3, 1.0);
-    float3 positiveColor = float3(1.0, 0.15, 0.05);
+        float v = sign(x) * log(1.0 + abs(x));
+        v /= log(1.0 + 10.0);
+        v = clamp(v, -1.0, 1.0);
 
-    float3 color =
-        v < 0.0
-        ? negativeColor * -v
-        : positiveColor * v;
+        float3 negativeColor = float3(0.1, 0.3, 1.0);
+        float3 positiveColor = float3(1.0, 0.15, 0.05);
 
-    outTexture.write(float4(color.x, color.y, color.z, 1.0), id);
+        float3 color =
+            v < 0.0
+            ? negativeColor * -v
+            : positiveColor * v;
+
+        outTexture.write(float4(color, 1.0), id);
+    } else {
+        float x = abs(ez) * uniforms.visualizationScale;
+
+        float v = log(1.0 + x);
+        v /= log(1.0 + 10.0);
+        v = clamp(v, 0.0, 1.0);
+
+        outTexture.write(float4(v, v, v, 1.0), id);
+    }
 }
