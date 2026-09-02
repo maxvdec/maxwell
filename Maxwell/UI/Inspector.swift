@@ -613,36 +613,66 @@ struct Inspector: View {
                     text: materialNameBinding(index: index)
                 )
                 .textFieldStyle(.roundedBorder)
+                
+                if materialBinding(index: index, keyPath: \.pec, default: 1).wrappedValue != 1 {
+                    FloatField(
+                        "Relative Permittivity",
+                        value: materialBinding(
+                            index: index,
+                            keyPath: \.epsilonR,
+                            default: 1
+                        ),
+                        unit: "εr"
+                    )
 
-                FloatField(
-                    "Relative Permittivity",
-                    value: materialBinding(
-                        index: index,
-                        keyPath: \.epsilonR,
-                        default: 1
-                    ),
-                    unit: "εr"
-                )
+                    FloatField(
+                        "Relative Permeability",
+                        value: materialBinding(
+                            index: index,
+                            keyPath: \.muR,
+                            default: 1
+                        ),
+                        unit: "μr"
+                    )
 
-                FloatField(
-                    "Relative Permeability",
-                    value: materialBinding(
-                        index: index,
-                        keyPath: \.muR,
-                        default: 1
-                    ),
-                    unit: "μr"
-                )
+                    FloatField(
+                        "Conductivity",
+                        value: materialBinding(
+                            index: index,
+                            keyPath: \.sigma,
+                            default: 0
+                        ),
+                        unit: "S/m"
+                    )
+                    
+                    Button {
+                        materialBinding(index: index, keyPath: \.pec, default: 0.0).wrappedValue = 1
+                    } label: {
+                        Text("Convert to a Perfect Electric Conductor")
+                            .frame(maxWidth: .infinity)
+                            .padding(10)
+                            .contentShape(Rectangle())
+                    }
+                    .cursor(.pointingHand)
+                    .buttonStyle(.plain)
+                    .glassEffect()
+                    .focusable(false)
+                } else {
+                    Button {
+                        materialBinding(index: index, keyPath: \.pec, default: 0.0).wrappedValue = 0
+                    } label: {
+                        Text("Convert to a Regular Electric Conductor")
+                            .frame(maxWidth: .infinity)
+                            .padding(10)
+                            .contentShape(Rectangle())
+                    }
+                    .cursor(.pointingHand)
+                    .buttonStyle(.plain)
+                    .glassEffect()
+                    .focusable(false)
+                }
 
-                FloatField(
-                    "Conductivity",
-                    value: materialBinding(
-                        index: index,
-                        keyPath: \.sigma,
-                        default: 0
-                    ),
-                    unit: "S/m"
-                )
+               
 
                 Text("Materials are reusable across colliders and affect wave propagation immediately.")
                     .font(.caption)
@@ -674,7 +704,8 @@ struct Inspector: View {
             EMMaterial(
                 epsilonR: 2.25,
                 muR: 1,
-                sigma: 0
+                sigma: 0,
+                pec: 0
             ),
             name: "Material \(renderer.materialCount + 1)"
         )

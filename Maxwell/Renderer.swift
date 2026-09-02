@@ -899,7 +899,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     private var cells: MTLSyncBuffer<GridCell>
     private var colliderMaterialIndices: MTLSyncBuffer<Int32>
     private var sources: [ElectricSource] = []
-    private var materials: [EMMaterial] = [EMMaterial(epsilonR: 1.0, muR: 1.0, sigma: 0.0)] // Vaccum material
+    private var materials: [EMMaterial] = [EMMaterial(epsilonR: 1.0, muR: 1.0, sigma: 0.0, pec: 0.0)] // Vaccum material
     private var materialNames: [String] = ["Vacuum"]
     private var sourceNames: [String] = []
 
@@ -982,15 +982,16 @@ final class Renderer: NSObject, MTKViewDelegate {
         self.sourceOverlayRenderer = SourceOverlayRenderer(device: device, library: library)
         
         materials = [
-            EMMaterial(epsilonR: 1.0, muR: 1.0, sigma: 0.0), // Vaccum
-            EMMaterial(epsilonR: 1.0006, muR: 1.0000004, sigma: 0.0), // Air
-            EMMaterial(epsilonR: 2.1, muR: 1.0, sigma: 1e-15), // PTFE
-            EMMaterial(epsilonR: 4.0, muR: 1.0, sigma: 1e-12), // Glass
-            EMMaterial(epsilonR: 11.7, muR: 1.0, sigma: 0.0), // Silicon
-            EMMaterial(epsilonR: 4.5, muR: 1.0, sigma: 0.02), // Concrete
-            EMMaterial(epsilonR: 75, muR: 1.0, sigma: 4.0), // Seawater
-            EMMaterial(epsilonR: 12, muR: 100, sigma: 0.01), // Ferrite
-            EMMaterial(epsilonR: 1, muR: 1, sigma: 5.8e7), // Copper
+            EMMaterial(epsilonR: 1.0, muR: 1.0, sigma: 0.0, pec: 0), // Vaccum
+            EMMaterial(epsilonR: 1.0006, muR: 1.0000004, sigma: 0.0, pec: 0), // Air
+            EMMaterial(epsilonR: 2.1, muR: 1.0, sigma: 1e-15, pec: 0), // PTFE
+            EMMaterial(epsilonR: 4.0, muR: 1.0, sigma: 1e-12, pec: 0), // Glass
+            EMMaterial(epsilonR: 11.7, muR: 1.0, sigma: 0.0, pec: 0), // Silicon
+            EMMaterial(epsilonR: 4.5, muR: 1.0, sigma: 0.02, pec: 0), // Concrete
+            EMMaterial(epsilonR: 75, muR: 1.0, sigma: 4.0, pec: 0), // Seawater
+            EMMaterial(epsilonR: 12, muR: 100, sigma: 0.01, pec: 0), // Ferrite
+            EMMaterial(epsilonR: 1, muR: 1, sigma: 5.8e7, pec: 0), // Copper
+            EMMaterial(epsilonR: 1, muR: 1, sigma: 0, pec: 1) // PEC
         ]
         
         materialNames = [
@@ -1002,7 +1003,8 @@ final class Renderer: NSObject, MTKViewDelegate {
             "Concrete",
             "Seawater (approximate preset - should vary with wavelength)",
             "Ferrite (approximate preset - should vary with wavelength)",
-            "Copper"
+            "Copper",
+            "Perfect Electric Conductor",
         ]
     }
 

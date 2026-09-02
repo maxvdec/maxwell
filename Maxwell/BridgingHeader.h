@@ -38,6 +38,8 @@ struct EMMaterial {
     float epsilonR; // Relative Permittivity
     float muR; // Relative Permeability
     float sigma; // Electrical Conductivity S/m
+    
+    float pec;
 };
 
 struct Uniforms {

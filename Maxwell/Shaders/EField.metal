@@ -153,6 +153,12 @@ kernel void updateEz(device GridCell* cells [[buffer(0)]],
         EMMaterial mat = materials[current.materialIndex];
         epslion = mat.epsilonR * epsilon0;
         sigmaMaterial = mat.sigma;
+        
+        if (mat.pec == 1.0) {
+            current.Ez = 0;
+            cells[index] = current;
+            return;
+        }
     }
     
     float leftDiff = (current.H.y - left.H.y) / uniforms.dx;
