@@ -41,7 +41,7 @@ float valueForSource(ElectricSource source, constant Uniforms& uniforms) {
         float t0 = 4 * sigma;
         float gaussian = exp(-1 * (pow(uniforms.t - t0, 2) / (2 * pow(sigma, 2))));
         float frequencyHz = source.frequency * 1e9;
-        float sine = sin(2 * M_PI_F * frequencyHz * (uniforms.t - 0) + source.phase);
+        float sine = sin(2 * M_PI_F * frequencyHz * (uniforms.t - t0) + source.phase);
         return source.amplitude * gaussian * sine;
     }
     

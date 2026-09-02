@@ -202,3 +202,113 @@ func calculateSigmaMax(pmlPhysical: Float) -> Float {
     let eta0: Float = 377
     return -1 * ((m + 1) * log(R) / 2 * eta0 * pmlPhysical)
 }
+
+struct SourceSample: Identifiable {
+    let id = UUID()
+    let time: Double
+    let value: Double
+}
+
+extension ElectricSource {
+    func value(at t: Float) -> Float {
+        switch SourceForm(rawValue: form)! {
+        case .sine:
+            let frequencyHz = frequency * 1e9
+            return amplitude * sin(2 * .pi * frequencyHz * t + phase)
+        case .pulse:
+            let frequencyHz = frequency * 1e9
+            if t < (duration / 1e9) {
+                return amplitude * sin(2 * .pi * frequencyHz * t + phase)
+            } else {
+                return 0
+            }
+        case .gaussianPulse:
+            let sigma = (gaussianWidth / 1e9) / 2.35482
+            let t0 = 4 * sigma
+            return amplitude * exp(-1 * (pow(t - t0, 2) / (2 * pow(sigma, 2))))
+        case .gausianModulated:
+            let sigma = (gaussianWidth / 1e9) / 2.35482
+            let t0 = 4 * sigma
+            let gaussian = exp(-1 * (pow(t - t0, 2) / (2 * pow(sigma, 2))))
+            let frequencyHz = frequency * 1e9
+            let sine = sin(2 * .pi * frequencyHz * (t - t0) + phase)
+            return amplitude * gaussian * sine
+        }
+    }
+}
+
+extension ElectricSource {
+    var previewTimeRange: ClosedRange<Double> {
+        switch SourceForm(rawValue: form)! {
+        case .sine:
+            let frequencyHz = Double(frequency) * 1e9
+
+            guard frequencyHz > 0 else {
+                return 0...1e-9
+            }
+
+            let period = 1.0 / frequencyHz
+
+            return 0...(5 * period)
+
+        case .pulse:
+            let durationSeconds = Double(duration) * 1e-9
+            let frequencyHz = Double(frequency) * 1e9
+
+            guard frequencyHz > 0 else {
+                return 0...max(durationSeconds * 1.2, 1e-9)
+            }
+
+            let period = 1.0 / frequencyHz
+
+            return 0...(durationSeconds + period)
+
+        case .gaussianPulse:
+            let fwhm = Double(gaussianWidth) * 1e-9
+            let sigma = fwhm / 2.35482
+            let t0 = 4 * sigma
+
+            return 0...(t0 + 4 * sigma)
+
+        case .gausianModulated:
+            let fwhm = Double(gaussianWidth) * 1e-9
+            let sigma = fwhm / 2.35482
+            let t0 = 4 * sigma
+
+            return 0...(t0 + 4 * sigma)
+        }
+    }
+}
+
+func getSourceSamples(for source: ElectricSource, from start: Double, to end: Double, count: Int = 300) -> [SourceSample] {
+    guard count >= 2 else {
+        return [
+            SourceSample(
+                time: start,
+                value: Double(source.value(at: Float(start)))
+            )
+        ]
+    }
+
+    return (0 ..< count).map { i in
+        let alpha = Double(i) / Double(count - 1)
+        let t = start + alpha * (end - start)
+
+        return SourceSample(
+            time: t,
+            value: Double(source.value(at: Float(t)))
+        )
+    }
+}
+
+func cycleNumber(at time: Double, for source: ElectricSource) -> Int? {
+    let frequencyHz = Double(source.frequency) * 1e9
+
+    guard frequencyHz > 0 else {
+        return nil
+    }
+
+    let period = 1.0 / frequencyHz
+
+    return Int(floor(time / period)) + 1
+}

@@ -845,7 +845,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     private var sourceNames: [String] = []
 
     private var uniforms: Uniforms
-    private var simTime: Float = 0.0
+    var simTime: Float = 0.0
 
     private var stepSingle: Bool = false
 

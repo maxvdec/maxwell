@@ -79,43 +79,52 @@ struct ContentView: View {
             return .handled
         }
         .overlay {
-            VStack {
-                TopBar(
-                    renderer: $renderer,
-                    settings: $settings
-                )
+            ZStack {
+                VStack {
+                    TopBar(
+                        renderer: $renderer,
+                        settings: $settings
+                    )
 
-                Spacer()
+                    Spacer()
+                }
 
                 HStack {
                     Sidebar(
                         currentTool: Binding(
-                            get: {
-                                editor.currentTool
-                            },
-                            set: {
-                                editor.currentTool = $0
-                            }
+                            get: { editor.currentTool },
+                            set: { editor.currentTool = $0 }
                         )
                     )
 
+                    Spacer()
+                }
+
+                HStack {
                     Spacer()
 
                     Inspector(
                         settings: $settings,
                         renderer: $renderer,
                         selection: Binding(
-                            get: {
-                                editor.selection
-                            },
-                            set: {
-                                editor.selection = $0
-                            }
+                            get: { editor.selection },
+                            set: { editor.selection = $0 }
                         )
                     )
                 }
 
-                Spacer()
+                VStack {
+                    Spacer()
+
+                    BottomInspectorView(
+                        settings: $settings,
+                        renderer: $renderer,
+                        selection: Binding(
+                            get: { editor.selection },
+                            set: { editor.selection = $0 }
+                        )
+                    )
+                }
             }
             .padding()
         }
